@@ -25,18 +25,24 @@
 ## 快速开始
 
 ```bash
-# 1. 启动 pgvector 向量库
+# 1. 启动 pgvector 向量库（宿主机端口 15432，避让本机原生 PostgreSQL）
 cd docker && docker compose up -d
 
 # 2. 配置环境变量
 export DASHSCOPE_API_KEY=你的阿里云百炼APIKey
 
-# 3. 启动后端
+# 3. 启动 MCP 服务（8102）
+cd mcp-server && mvn spring-boot:run
+
+# 4. 启动后端（8101）
 cd backend && mvn spring-boot:run
 
-# 4. 启动前端
+# 5. 启动前端（5173）
 cd frontend && npm install && npm run dev
 ```
+
+> 若 MCP 服务未启动，先用 `MCP_CLIENT_ENABLED=false mvn spring-boot:run` 启动后端。
+> 接口详见 [docs/API.md](docs/API.md)。
 
 ## 全流程
 

@@ -2,7 +2,8 @@ spring:
   application:
     name: ai-love-backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/ai_love
+    # 15432 = docker/docker-compose.yml 中 pgvector 的宿主机端口（避让本机原生 PostgreSQL 的 5432）
+    url: jdbc:postgresql://127.0.0.1:15432/ai_love
     username: ai_love
     password: ai_love123
   servlet:
@@ -36,7 +37,7 @@ spring:
         sse:
           connections:
             ai-love-mcp:
-              url: http://localhost:8102
+              url: http://127.0.0.1:8102
 
 server:
   port: 8101

@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: ai_love
       POSTGRES_PASSWORD: ai_love123
     ports:
-      - "5432:5432"
+      # 宿主机 15432 避让本机原生 PostgreSQL 服务占用的 5432
+      - "15432:5432"
+    restart: unless-stopped
     volumes:
       - pgvector_data:/var/lib/postgresql/data
     healthcheck:
