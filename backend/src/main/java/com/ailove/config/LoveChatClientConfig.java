@@ -5,6 +5,7 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,7 +33,9 @@ public class LoveChatClientConfig {
     @Bean
     public ChatClient loveChatClient(ChatClient.Builder builder, ChatMemory chatMemory,
                                      WeatherTool weatherTool, LoveReportTool loveReportTool,
-                                     org.springframework.beans.factory.ObjectProvider<ToolCallbackProvider> mcpProvider) {
+                                     ObjectProvider<ToolCallbackProvider> mcpProvider,
+                                     org.springframework.beans.factory.ObjectProvider<com.ailove.tools.inline.LoveImageSearchTool> inlineImageTool,
+                                     org.springframework.beans.factory.ObjectProvider<com.ailove.tools.inline.FlowerMeaningTool> inlineFlowerTool) {
         ChatClient.Builder b = builder
                 .defaultSystem(loveMasterSystemPrompt)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
@@ -41,6 +44,12 @@ public class LoveChatClientConfig {
         ToolCallbackProvider provider = mcpProvider.getIfAvailable();
         if (provider != null) {
             b = b.defaultToolCallbacks(provider);
+        }
+        // 云端内联工具（app.inline-love-tools.enabled=true 时生效，替代 MCP 远程调用）
+        var imgTool = inlineImageTool.getIfAvailable();
+        var flowerTool = inlineFlowerTool.getIfAvailable();
+        if (imgTool != null && flowerTool != null) {
+            b = b.defaultTools(imgTool, flowerTool);
         }
         return b.build();
     }

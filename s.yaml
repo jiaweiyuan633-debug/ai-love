@@ -1,10 +1,32 @@
 # Serverless Devs 配置（阿里云函数计算 FC 3.0）
-# 用法：npm i -g @serverless-devs/s && s config add && s deploy
+# 用法：s deploy mcp → s deploy backend → s deploy frontend（按顺序，前者的 URL 是后者的入参）
 edition: 3.0.0
 name: ai-love
 access: default
 
 resources:
+  mcp:
+    component: fc3
+    props:
+      region: cn-hangzhou
+      functionName: ai-love-mcp-server
+      description: AI 恋爱大师 MCP 服务（图片搜索/花语查询）
+      runtime: custom-container
+      cpu: 1
+      memorySize: 1024
+      diskSize: 512
+      timeout: 120
+      internetAccess: true
+      customContainerConfig:
+        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:mcp-server-latest
+        port: 9000
+      triggers:
+        - triggerName: http-trigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods: [GET, POST, DELETE, OPTIONS]
+
   backend:
     component: fc3
     props:
@@ -14,20 +36,18 @@ resources:
       runtime: custom-container
       cpu: 2
       memorySize: 4096
+      diskSize: 512
       timeout: 600
       internetAccess: true
       customContainerConfig:
-        # 部署前推送到阿里云容器镜像服务 ACR，替换为你的镜像地址
-        image: registry.cn-hangzhou.aliyuncs.com/your-namespace/ai-love-backend:latest
-        command: '["sh", "-c"]'
-        args: '["java $JAVA_OPTS -jar app.jar --server.port=9000"]'
+        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:backend-latest
         port: 9000
       environmentVariables:
         DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
-        MCP_CLIENT_ENABLED: "false" # 单函数部署时关闭 MCP 客户端；MCP 独立部署后改 true 并填其公网地址
-        SPRING_DATASOURCE_URL: ${env(SPRING_DATASOURCE_URL)}
-        SPRING_DATASOURCE_USERNAME: ${env(SPRING_DATASOURCE_USERNAME)}
-        SPRING_DATASOURCE_PASSWORD: ${env(SPRING_DATASOURCE_PASSWORD)}
+        KNOWLEDGE_ENABLED: "false" # 买了 RDS 后改 true 并配置数据源变量
+        INLINE_LOVE_TOOLS: "true" # 云端内联图片搜索/花语工具（替代有状态的 MCP 远程调用）
+        MCP_CLIENT_ENABLED: "false"
+        SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
       triggers:
         - triggerName: http-trigger
           triggerType: http
@@ -44,13 +64,13 @@ resources:
       runtime: custom-container
       cpu: 0.5
       memorySize: 1024
+      diskSize: 512
       timeout: 600
       internetAccess: true
       customContainerConfig:
-        image: registry.cn-hangzhou.aliyuncs.com/your-namespace/ai-love-frontend:latest
+        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:frontend-v3
         port: 80
       environmentVariables:
-        # 指向后端函数的 HTTP 触发器 URL（部署 backend 后替换）
         BACKEND_UPSTREAM: ${env(BACKEND_UPSTREAM)}
       triggers:
         - triggerName: http-trigger

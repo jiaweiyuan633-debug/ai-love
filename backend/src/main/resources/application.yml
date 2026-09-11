@@ -51,3 +51,6 @@ app:
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）
   knowledge:
     enabled: ${KNOWLEDGE_ENABLED:true}
+  # 云端内联恋爱工具（与 MCP 远程工具二选一：云端 true + MCP 关闭；本地默认走 MCP）
+  inline-love-tools:
+    enabled: ${INLINE_LOVE_TOOLS:false}

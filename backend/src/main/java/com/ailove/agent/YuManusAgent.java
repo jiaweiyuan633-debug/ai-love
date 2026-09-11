@@ -58,6 +58,8 @@ public class YuManusAgent {
                         WeatherTool weatherTool,
                         LoveReportTool loveReportTool,
                         ObjectProvider<KnowledgeSearchTool> knowledgeToolProvider,
+                        ObjectProvider<com.ailove.tools.inline.LoveImageSearchTool> inlineImageTool,
+                        ObjectProvider<com.ailove.tools.inline.FlowerMeaningTool> inlineFlowerTool,
                         ObjectProvider<org.springframework.ai.tool.ToolCallbackProvider> mcpProvider) {
         this.chatClient = chatClientBuilder.build();
         for (ToolCallback callback : ToolCallbacks.from(weatherTool, loveReportTool)) {
@@ -67,6 +69,14 @@ public class YuManusAgent {
         KnowledgeSearchTool knowledgeSearchTool = knowledgeToolProvider.getIfAvailable();
         if (knowledgeSearchTool != null) {
             for (ToolCallback callback : ToolCallbacks.from(knowledgeSearchTool)) {
+                toolRegistry.put(callback.getToolDefinition().name(), callback);
+            }
+        }
+        // 云端内联工具（与 MCP 远程工具二选一）
+        var imgTool = inlineImageTool.getIfAvailable();
+        var flowerTool = inlineFlowerTool.getIfAvailable();
+        if (imgTool != null && flowerTool != null) {
+            for (ToolCallback callback : ToolCallbacks.from(imgTool, flowerTool)) {
                 toolRegistry.put(callback.getToolDefinition().name(), callback);
             }
         }

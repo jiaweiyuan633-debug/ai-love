@@ -7,9 +7,14 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # 精确匹配 /knowledge 页面路由（避免 nginx 对带斜杠前缀 location 的自动补斜杠 301）
+    location = /knowledge {
+        try_files /index.html =404;
+    }
+
     # Vue Router history 模式
     location / {
-        try_files $uri $uri/ /index.html;
+        try_files $uri /index.html;
     }
 
     # SSE：必须关闭缓冲
