@@ -37,7 +37,8 @@ spring:
         sse:
           connections:
             ai-love-mcp:
-              url: http://127.0.0.1:8102
+              # 云上部署时用环境变量覆盖为 MCP 服务的公网/内网地址
+              url: ${MCP_SSE_URL:http://127.0.0.1:8102}
 
 server:
   port: 8101

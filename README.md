@@ -42,7 +42,7 @@ cd frontend && npm install && npm run dev
 ```
 
 > 若 MCP 服务未启动，先用 `MCP_CLIENT_ENABLED=false mvn spring-boot:run` 启动后端。
-> 接口详见 [docs/API.md](docs/API.md)。
+> 接口详见 [docs/API.md](docs/API.md)，云端部署详见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ## 全流程
 

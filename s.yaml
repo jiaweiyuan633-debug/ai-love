@@ -1,0 +1,60 @@
+# Serverless Devs 配置（阿里云函数计算 FC 3.0）
+# 用法：npm i -g @serverless-devs/s && s config add && s deploy
+edition: 3.0.0
+name: ai-love
+access: default
+
+resources:
+  backend:
+    component: fc3
+    props:
+      region: cn-hangzhou
+      functionName: ai-love-backend
+      description: AI 恋爱大师 + YuManus 智能体后端
+      runtime: custom-container
+      cpu: 2
+      memorySize: 4096
+      timeout: 600
+      internetAccess: true
+      customContainerConfig:
+        # 部署前推送到阿里云容器镜像服务 ACR，替换为你的镜像地址
+        image: registry.cn-hangzhou.aliyuncs.com/your-namespace/ai-love-backend:latest
+        command: '["sh", "-c"]'
+        args: '["java $JAVA_OPTS -jar app.jar --server.port=9000"]'
+        port: 9000
+      environmentVariables:
+        DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
+        MCP_CLIENT_ENABLED: "false" # 单函数部署时关闭 MCP 客户端；MCP 独立部署后改 true 并填其公网地址
+        SPRING_DATASOURCE_URL: ${env(SPRING_DATASOURCE_URL)}
+        SPRING_DATASOURCE_USERNAME: ${env(SPRING_DATASOURCE_USERNAME)}
+        SPRING_DATASOURCE_PASSWORD: ${env(SPRING_DATASOURCE_PASSWORD)}
+      triggers:
+        - triggerName: http-trigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods: [GET, POST, DELETE, OPTIONS]
+
+  frontend:
+    component: fc3
+    props:
+      region: cn-hangzhou
+      functionName: ai-love-frontend
+      description: AI 恋爱大师前端（nginx 静态托管 + 接口反代）
+      runtime: custom-container
+      cpu: 0.5
+      memorySize: 1024
+      timeout: 600
+      internetAccess: true
+      customContainerConfig:
+        image: registry.cn-hangzhou.aliyuncs.com/your-namespace/ai-love-frontend:latest
+        port: 80
+      environmentVariables:
+        # 指向后端函数的 HTTP 触发器 URL（部署 backend 后替换）
+        BACKEND_UPSTREAM: ${env(BACKEND_UPSTREAM)}
+      triggers:
+        - triggerName: http-trigger
+          triggerType: http
+          triggerConfig:
+            authType: anonymous
+            methods: [GET, POST, DELETE, OPTIONS]
