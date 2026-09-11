@@ -45,6 +45,11 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-advisors-vector-store</artifactId>
         </dependency>
+        <!-- MCP 客户端：通过 SSE 连接 ai-love-mcp-server 获取远程工具 -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-client</artifactId>
+        </dependency>
         <!-- PDF 恋爱报告生成（OpenPDF 内置 CJK 字体） -->
         <dependency>
             <groupId>com.github.librepdf</groupId>

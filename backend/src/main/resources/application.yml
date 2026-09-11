@@ -27,6 +27,16 @@ spring:
         initialize-schema: true
         distance-type: COSINE_DISTANCE
         index-type: HNSW
+    mcp:
+      client:
+        # MCP 服务未启动时可置 false 单独跑主应用
+        enabled: ${MCP_CLIENT_ENABLED:true}
+        toolcallback:
+          enabled: true
+        sse:
+          connections:
+            ai-love-mcp:
+              url: http://localhost:8102
 
 server:
   port: 8101

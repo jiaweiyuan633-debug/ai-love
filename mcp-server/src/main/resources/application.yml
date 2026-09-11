@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: ai-love-mcp-server
+  ai:
+    mcp:
+      server:
+        name: ai-love-mcp-server
+        version: 1.0.0
+        # SSE 传输：主应用通过 http://localhost:8102/sse 连接
+        type: SYNC
+        sse-message-endpoint: /mcp/messages
+
+pexels:
+  api-key: ${PEXELS_API_KEY:}
+
+server:
+  port: 8102
