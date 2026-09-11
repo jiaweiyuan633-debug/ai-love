@@ -32,6 +32,17 @@
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
+        <!-- PDF 恋爱报告生成（OpenPDF 内置 CJK 字体） -->
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf</artifactId>
+            <version>2.2.2</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.librepdf</groupId>
+            <artifactId>openpdf-fonts-extra</artifactId>
+            <version>2.2.2</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

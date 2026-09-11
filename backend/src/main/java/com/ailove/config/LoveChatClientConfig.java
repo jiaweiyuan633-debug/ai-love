@@ -9,8 +9,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.Resource;
 
+import com.ailove.tools.LoveReportTool;
+import com.ailove.tools.WeatherTool;
+
 /**
- * AI 恋爱大师专用 ChatClient：人设 System Prompt + 多轮会话记忆。
+ * AI 恋爱大师专用 ChatClient：人设 System Prompt + 多轮会话记忆 + 工具调用。
  */
 @Configuration
 public class LoveChatClientConfig {
@@ -26,10 +29,12 @@ public class LoveChatClientConfig {
     }
 
     @Bean
-    public ChatClient loveChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
+    public ChatClient loveChatClient(ChatClient.Builder builder, ChatMemory chatMemory,
+                                     WeatherTool weatherTool, LoveReportTool loveReportTool) {
         return builder
                 .defaultSystem(loveMasterSystemPrompt)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .defaultTools(weatherTool, loveReportTool)
                 .build();
     }
 }
