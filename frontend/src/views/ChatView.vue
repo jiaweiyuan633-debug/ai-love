@@ -27,38 +27,45 @@ async function scrollToBottom() {
   box?.scrollTo({ top: box.scrollHeight })
 }
 
+/** 轻量 Markdown 渲染：先转义 HTML 再转换加粗/行内代码，保证安全 */
+function renderMd(text: string): string {
+  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>')
+  s = s.replace(/^#{1,4}\s+(.+)$/gm, '<strong>$1</strong>')
+  return s
+}
+
 function send(text?: string) {
   const message = (text ?? input.value).trim()
   if (!message || streaming.value) return
   input.value = ''
   error.value = ''
   messages.value.push({ role: 'user', content: message })
-  const reply = ref('')
-  const placeholder = { role: 'assistant' as const, content: reply.value }
-  messages.value.push(placeholder)
+  // 通过响应式数组索引写入，保证每个 token 都触发界面更新（流式逐字渲染）
+  messages.value.push({ role: 'assistant', content: '' })
+  const replyIndex = messages.value.length - 1
   scrollToBottom()
   streaming.value = true
 
-  let received = false
   closeStream = openSseStream(
     `/ai/love_chat/stream?message=${encodeURIComponent(message)}&chatId=${encodeURIComponent(chatId.value)}`,
     (token) => {
-      received = true
-      reply.value += token
-      placeholder.content = reply.value
+      messages.value[replyIndex].content += token
       scrollToBottom()
     },
     () => {
       streaming.value = false
-      if (!received) {
+      closeStream = null
+      if (!messages.value[replyIndex].content) {
+        messages.value[replyIndex].content = '（没有收到回复，请重试）'
         error.value = '没有收到回复，请确认后端已启动并配置了 DASHSCOPE_API_KEY'
       }
-      closeStream = null
     },
     () => {
       streaming.value = false
-      error.value = '连接中断，请稍后重试'
       closeStream = null
+      error.value = '连接失败，请确认后端 8101 已启动'
     },
   )
 }
@@ -98,7 +105,11 @@ function resetSession() {
         class="msg"
         :class="m.role"
       >
-        <div class="bubble">{{ m.content }}<span v-if="streaming && i === messages.length - 1 && m.role === 'assistant'" class="cursor">▌</span></div>
+        <div class="bubble" v-html="renderMd(m.content)"></div>
+        <span
+          v-if="streaming && i === messages.length - 1 && m.role === 'assistant'"
+          class="cursor"
+        >▌</span>
       </div>
     </div>
 
@@ -195,6 +206,13 @@ function resetSession() {
   white-space: pre-wrap;
   word-break: break-word;
   font-size: 14px;
+}
+.bubble :deep(code) {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: Consolas, monospace;
+  font-size: 13px;
 }
 .msg.user .bubble {
   background: linear-gradient(135deg, #ff6b9d, #a76bff);

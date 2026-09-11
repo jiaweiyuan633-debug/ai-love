@@ -44,7 +44,7 @@ public class LoveChatController {
     }
 
     /**
-     * SSE 流式对话：前端逐字渲染。
+     * SSE 流式对话：前端逐字渲染。以 [DONE] 标记正常结束，避免前端 EventSource 误判断连。
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> stream(@RequestParam String message,
@@ -54,7 +54,8 @@ public class LoveChatController {
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, chatId))
                 .stream()
                 .content()
-                .map(token -> ServerSentEvent.builder(token).build());
+                .map(token -> ServerSentEvent.builder(token).build())
+                .concatWith(Flux.just(ServerSentEvent.builder("[DONE]").build()));
     }
 
     /**
@@ -71,6 +72,7 @@ public class LoveChatController {
                         .build())
                 .stream()
                 .content()
-                .map(token -> ServerSentEvent.builder(token).build());
+                .map(token -> ServerSentEvent.builder(token).build())
+                .concatWith(Flux.just(ServerSentEvent.builder("[DONE]").build()));
     }
 }

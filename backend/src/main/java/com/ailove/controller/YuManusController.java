@@ -25,6 +25,7 @@ public class YuManusController {
 
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> run(@RequestParam String task) {
-        return yuManusAgent.runStream(task);
+        // [DONE] 作为正常结束标记，前端收到后主动关闭连接
+        return yuManusAgent.runStream(task).concatWithValues("[DONE]");
     }
 }
