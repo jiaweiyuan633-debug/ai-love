@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: ai-love-backend
+  ai:
+    openai:
+      # 复用 Spring AI 官方 OpenAI 客户端，走通义千问 OpenAI 兼容模式
+      api-key: ${DASHSCOPE_API_KEY}
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
+      chat:
+        options:
+          model: qwen-plus
+          temperature: 0.7
+
+server:
+  port: 8101
