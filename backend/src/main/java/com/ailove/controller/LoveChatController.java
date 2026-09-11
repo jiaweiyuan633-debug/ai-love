@@ -6,6 +6,7 @@ import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvi
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +17,7 @@ import reactor.core.publisher.Flux;
 
 /**
  * AI 恋爱大师对话接口：支持多轮会话记忆（会话 ID 隔离）、SSE 流式输出，
- * 以及基于 RAG 知识库的检索增强对话。
+ * 以及基于 RAG 知识库的检索增强对话（未配置向量库时该端点给出提示）。
  */
 @RestController
 @RequestMapping("/ai/love_chat")
@@ -25,9 +26,9 @@ public class LoveChatController {
     private final ChatClient loveChatClient;
     private final VectorStore vectorStore;
 
-    public LoveChatController(ChatClient loveChatClient, VectorStore vectorStore) {
+    public LoveChatController(ChatClient loveChatClient, ObjectProvider<VectorStore> vectorStoreProvider) {
         this.loveChatClient = loveChatClient;
-        this.vectorStore = vectorStore;
+        this.vectorStore = vectorStoreProvider.getIfAvailable();
     }
 
     /**
@@ -64,6 +65,10 @@ public class LoveChatController {
     @GetMapping(value = "/rag_stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> ragStream(@RequestParam String message,
                                                    @RequestParam(defaultValue = "default") String chatId) {
+        if (vectorStore == null) {
+            return Flux.just(ServerSentEvent.builder("知识库功能未启用：当前部署未配置向量数据库。")
+                    .build(), ServerSentEvent.builder("[DONE]").build());
+        }
         return loveChatClient.prompt()
                 .user(message)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, chatId))

@@ -8,12 +8,14 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
  * 知识库检索工具：供 YuManus 智能体在规划中调用 RAG 检索。
  */
 @Component
+@ConditionalOnProperty(name = "app.knowledge.enabled", havingValue = "true", matchIfMissing = true)
 public class KnowledgeSearchTool {
 
     private final VectorStore vectorStore;

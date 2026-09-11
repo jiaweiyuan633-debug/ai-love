@@ -14,14 +14,17 @@ import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
  * RAG 知识库服务：文档上传 → Tika 解析 → TokenTextSplitter 切分 → 向量化入库 (PgVector)。
+ * 无数据库部署时通过 app.knowledge.enabled=false 整体关闭。
  */
 @Service
+@ConditionalOnProperty(name = "app.knowledge.enabled", havingValue = "true", matchIfMissing = true)
 public class KnowledgeService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeService.class);

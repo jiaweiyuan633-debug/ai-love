@@ -57,11 +57,18 @@ public class YuManusAgent {
     public YuManusAgent(ChatClient.Builder chatClientBuilder,
                         WeatherTool weatherTool,
                         LoveReportTool loveReportTool,
-                        KnowledgeSearchTool knowledgeSearchTool,
+                        ObjectProvider<KnowledgeSearchTool> knowledgeToolProvider,
                         ObjectProvider<org.springframework.ai.tool.ToolCallbackProvider> mcpProvider) {
         this.chatClient = chatClientBuilder.build();
-        for (ToolCallback callback : ToolCallbacks.from(weatherTool, loveReportTool, knowledgeSearchTool)) {
+        for (ToolCallback callback : ToolCallbacks.from(weatherTool, loveReportTool)) {
             toolRegistry.put(callback.getToolDefinition().name(), callback);
+        }
+        // 知识库检索工具（无数据库部署时该 Bean 不存在）
+        KnowledgeSearchTool knowledgeSearchTool = knowledgeToolProvider.getIfAvailable();
+        if (knowledgeSearchTool != null) {
+            for (ToolCallback callback : ToolCallbacks.from(knowledgeSearchTool)) {
+                toolRegistry.put(callback.getToolDefinition().name(), callback);
+            }
         }
         // MCP 远程工具（MCP 客户端关闭时该 Bean 不存在）
         org.springframework.ai.tool.ToolCallbackProvider provider = mcpProvider.getIfAvailable();

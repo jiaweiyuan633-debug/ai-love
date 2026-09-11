@@ -32,12 +32,16 @@ public class LoveChatClientConfig {
     @Bean
     public ChatClient loveChatClient(ChatClient.Builder builder, ChatMemory chatMemory,
                                      WeatherTool weatherTool, LoveReportTool loveReportTool,
-                                     ToolCallbackProvider mcpToolCallbackProvider) {
-        return builder
+                                     org.springframework.beans.factory.ObjectProvider<ToolCallbackProvider> mcpProvider) {
+        ChatClient.Builder b = builder
                 .defaultSystem(loveMasterSystemPrompt)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .defaultTools(weatherTool, loveReportTool)
-                .defaultToolCallbacks(mcpToolCallbackProvider)
-                .build();
+                .defaultTools(weatherTool, loveReportTool);
+        // MCP 远程工具（MCP 客户端关闭时该 Bean 不存在）
+        ToolCallbackProvider provider = mcpProvider.getIfAvailable();
+        if (provider != null) {
+            b = b.defaultToolCallbacks(provider);
+        }
+        return b.build();
     }
 }

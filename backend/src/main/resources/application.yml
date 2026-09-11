@@ -1,6 +1,10 @@
 spring:
   application:
     name: ai-love-backend
+  # 云端无数据库部署时，通过环境变量排除 JDBC/pgvector 自动配置：
+  # SPRING_AUTOCONFIGURE_EXCLUDE=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+  autoconfigure:
+    exclude: ${SPRING_AUTOCONFIGURE_EXCLUDE:}
   datasource:
     # 15432 = docker/docker-compose.yml 中 pgvector 的宿主机端口（避让本机原生 PostgreSQL 的 5432）
     url: jdbc:postgresql://127.0.0.1:15432/ai_love
@@ -42,3 +46,8 @@ spring:
 
 server:
   port: 8101
+
+app:
+  # 知识库/RAG 功能开关（无数据库的云端部署置 false）
+  knowledge:
+    enabled: ${KNOWLEDGE_ENABLED:true}
