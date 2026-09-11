@@ -1,10 +1,11 @@
 # 多阶段构建：Maven 打包 + JRE 运行
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
+COPY settings.xml .
 COPY pom.xml .
-RUN mvn -q dependency:go-offline
+RUN mvn -q -s settings.xml dependency:go-offline
 COPY src ./src
-RUN mvn -q package -DskipTests
+RUN mvn -q -s settings.xml package -DskipTests
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
