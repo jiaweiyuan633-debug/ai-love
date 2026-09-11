@@ -5,12 +5,14 @@ import { openSseStream } from '../api'
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  rag?: boolean
 }
 
 const messages = ref<ChatMessage[]>([])
 const input = ref('')
 const chatId = ref('chat-' + Date.now().toString(36))
 const streaming = ref(false)
+const ragEnabled = ref(false)
 const error = ref('')
 let closeStream: (() => void) | null = null
 
@@ -43,13 +45,14 @@ function send(text?: string) {
   error.value = ''
   messages.value.push({ role: 'user', content: message })
   // 通过响应式数组索引写入，保证每个 token 都触发界面更新（流式逐字渲染）
-  messages.value.push({ role: 'assistant', content: '' })
+  messages.value.push({ role: 'assistant', content: '', rag: ragEnabled.value })
   const replyIndex = messages.value.length - 1
   scrollToBottom()
   streaming.value = true
 
+  const endpoint = ragEnabled.value ? '/ai/love_chat/rag_stream' : '/ai/love_chat/stream'
   closeStream = openSseStream(
-    `/ai/love_chat/stream?message=${encodeURIComponent(message)}&chatId=${encodeURIComponent(chatId.value)}`,
+    `${endpoint}?message=${encodeURIComponent(message)}&chatId=${encodeURIComponent(chatId.value)}`,
     (token) => {
       messages.value[replyIndex].content += token
       scrollToBottom()
@@ -110,15 +113,21 @@ function resetSession() {
           v-if="streaming && i === messages.length - 1 && m.role === 'assistant'"
           class="cursor"
         >▌</span>
+        <span v-if="m.role === 'assistant' && m.rag" class="rag-badge">📚 知识库</span>
       </div>
     </div>
 
     <div v-if="error" class="error-bar">{{ error }}</div>
 
     <div class="input-bar">
+      <label class="rag-toggle" :class="{ on: ragEnabled }" title="开启后，回答前会先检索你上传到恋爱知识库的文档">
+        <input v-model="ragEnabled" type="checkbox" hidden />
+        <span class="switch"><span class="knob"></span></span>
+        <span class="rag-label">📚 知识库增强</span>
+      </label>
       <input
         v-model="input"
-        placeholder="说出你的困惑，恋爱大师为你解答…"
+        :placeholder="ragEnabled ? '结合恋爱知识库回答，说说你的困惑…' : '说出你的困惑，恋爱大师为你解答…'"
         @keydown.enter="send()"
       />
       <button v-if="streaming" class="stop-btn" @click="stop">停止</button>
@@ -241,6 +250,59 @@ function resetSession() {
   gap: 10px;
   padding: 12px 16px;
   border-top: 1px solid #2b2b3a;
+  align-items: center;
+}
+.rag-toggle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  color: #8888a6;
+  font-size: 12px;
+  user-select: none;
+}
+.rag-toggle .switch {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #2b2b45;
+  border: 1px solid #3a3a55;
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.rag-toggle .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #8888a6;
+  transition: all 0.2s;
+}
+.rag-toggle.on {
+  color: #e6e6f2;
+}
+.rag-toggle.on .switch {
+  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  border-color: transparent;
+}
+.rag-toggle.on .knob {
+  left: 18px;
+  background: #fff;
+}
+.rag-badge {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #c9b6ff;
+  background: rgba(167, 107, 255, 0.15);
+  border: 1px solid rgba(167, 107, 255, 0.4);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
 }
 .input-bar input {
   flex: 1;
