@@ -31,6 +31,9 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
+# ZCode internal
+.zcode/
+
 # App data
 data/uploads/
 data/vectorstore/
