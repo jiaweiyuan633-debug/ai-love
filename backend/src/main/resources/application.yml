@@ -1,6 +1,14 @@
 spring:
   application:
     name: ai-love-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ai_love
+    username: ai_love
+    password: ai_love123
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
   ai:
     openai:
       # 复用 Spring AI 官方 OpenAI 客户端，走通义千问 OpenAI 兼容模式
@@ -10,6 +18,15 @@ spring:
         options:
           model: qwen-plus
           temperature: 0.7
+      embedding:
+        options:
+          model: text-embedding-v3
+    vectorstore:
+      pgvector:
+        dimensions: 1024
+        initialize-schema: true
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
 
 server:
   port: 8101

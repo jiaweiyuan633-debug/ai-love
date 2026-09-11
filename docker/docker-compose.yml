@@ -1,0 +1,20 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: ai-love-pgvector
+    environment:
+      POSTGRES_DB: ai_love
+      POSTGRES_USER: ai_love
+      POSTGRES_PASSWORD: ai_love123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_love -d ai_love"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgvector_data:
