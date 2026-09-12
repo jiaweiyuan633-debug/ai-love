@@ -1,11 +1,16 @@
 package com.ailove.chat;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
 import com.ailove.auth.AuthContext;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,8 +20,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriUtils;
 
 /**
  * 会话管理：列表 / 新建 / 重命名 / 删除 / 历史消息。全部按登录用户隔离。
@@ -49,6 +56,38 @@ public class ConversationController {
     public List<ConversationStore.StoredMessage> messages(@PathVariable String id) {
         requireOwned(id);
         return store.listMessages(id);
+    }
+
+    @GetMapping("/search")
+    public List<ConversationStore.SearchHit> search(@RequestParam String q) {
+        String keyword = q.trim();
+        if (keyword.isEmpty()) {
+            return List.of();
+        }
+        return store.search(currentUserId(), keyword, 30);
+    }
+
+    /** 导出会话为 Markdown 文件下载。 */
+    @GetMapping(value = "/{id}/export", produces = "text/markdown;charset=UTF-8")
+    public ResponseEntity<String> export(@PathVariable String id) {
+        requireOwned(id);
+        ConversationStore.Conversation conversation = store.find(id).orElseThrow();
+        List<ConversationStore.StoredMessage> messages = store.listMessages(id);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+                .withZone(ZoneId.systemDefault());
+        StringBuilder sb = new StringBuilder();
+        sb.append("# ").append(conversation.title()).append("\n\n")
+                .append("> 导出自 AI 恋爱大师 · ").append(LocalDate.now())
+                .append(" · 共 ").append(messages.size()).append(" 条消息\n\n---\n\n");
+        for (ConversationStore.StoredMessage m : messages) {
+            sb.append("**").append("user".equals(m.role()) ? "我" : "恋爱大师").append("**（")
+                    .append(fmt.format(m.createdAt())).append("）：\n\n")
+                    .append(m.content()).append("\n\n---\n\n");
+        }
+        String filename = UriUtils.encode(conversation.title() + ".md", StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
+                .body(sb.toString());
     }
 
     @PatchMapping("/{id}")

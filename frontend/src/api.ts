@@ -206,6 +206,33 @@ export async function listMessages(id: string): Promise<StoredMessage[]> {
   return resp.json()
 }
 
+export interface ConversationSearchHit {
+  conversationId: string
+  conversationTitle: string
+  role: string
+  snippet: string
+  createdAt: string
+}
+
+export async function searchConversations(q: string): Promise<ConversationSearchHit[]> {
+  const resp = await authRequest(`/api/conversations/search?q=${encodeURIComponent(q)}`)
+  if (!resp.ok) throw await errorOf(resp, '搜索失败')
+  return resp.json()
+}
+
+/** 导出会话为 Markdown 并触发浏览器下载 */
+export async function exportConversation(id: string, title: string): Promise<void> {
+  const resp = await authRequest(`/api/conversations/${id}/export`)
+  if (!resp.ok) throw await errorOf(resp, '导出失败')
+  const blob = await resp.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${(title || '对话').replace(/[\\/:*?"<>|]/g, '_')}.md`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 // ================= 长期记忆 =================
 
 export interface MemoryItem {

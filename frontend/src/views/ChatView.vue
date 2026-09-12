@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { listMessages, openSseStream, type StoredMessage } from '../api'
+import { listMessages, openSseStream, exportConversation, type StoredMessage } from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
 import { settings } from '../stores/settings'
 import { feedSpeech, finishSpeech, speakFull, speaking, stopSpeech } from '../composables/useSpeech'
@@ -178,6 +178,15 @@ function toggleVoice() {
   if (!settings.voiceEnabled) stopSpeech()
 }
 
+async function doExport() {
+  if (!conversations.activeId) return
+  try {
+    await exportConversation(conversations.activeId, currentTitle.value)
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '导出失败'
+  }
+}
+
 // 语音输入：识别结果追加到输入框（可编辑后再发送）
 const { listening: micListening, interim: micInterim, toggle: toggleMic } = useVoiceInput({
   onFinal: (text) => {
@@ -234,6 +243,12 @@ function resetSession() {
       <span class="conv-title">{{ currentTitle }}</span>
       <span v-if="!persistenceEnabled()" class="guest-badge">体验模式 · 历史不保存</span>
       <div class="toolbar-right">
+        <button
+          v-if="persistenceEnabled() && conversations.activeId"
+          class="voice-btn"
+          title="导出当前对话为 Markdown"
+          @click="doExport"
+        >⬇️ 导出</button>
         <button
           class="voice-btn"
           :class="{ on: settings.voiceEnabled, speaking }"

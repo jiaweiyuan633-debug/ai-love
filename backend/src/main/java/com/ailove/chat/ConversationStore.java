@@ -23,6 +23,11 @@ public class ConversationStore {
     public record StoredMessage(long id, String role, String content, Instant createdAt) {
     }
 
+    /** 消息全文检索命中项 */
+    public record SearchHit(String conversationId, String conversationTitle, String role,
+                            String snippet, Instant createdAt) {
+    }
+
     private final JdbcClient jdbc;
 
     public ConversationStore(JdbcClient jdbc) {
@@ -133,6 +138,37 @@ public class ConversationStore {
                 .param(conversationId)
                 .query(Integer.class)
                 .single();
+    }
+
+    /** 按内容关键词检索当前用户的历史消息（新→旧），返回带上下文摘要的命中项。 */
+    public List<SearchHit> search(long userId, String keyword, int limit) {
+        String like = "%" + keyword + "%";
+        return jdbc.sql("""
+                SELECT m.conversation_id, c.title, m.role, m.content, m.created_at
+                FROM messages m JOIN conversations c ON c.id = m.conversation_id
+                WHERE c.user_id = ? AND m.content ILIKE ?
+                ORDER BY m.id DESC LIMIT ?
+                """)
+                .param(userId)
+                .param(like)
+                .param(limit)
+                .query((rs, i) -> new SearchHit(
+                        rs.getString("conversation_id"), rs.getString("title"), rs.getString("role"),
+                        snippet(rs.getString("content"), keyword),
+                        rs.getTimestamp("created_at").toInstant()))
+                .list();
+    }
+
+    /** 截取关键词附近的片段作为搜索摘要。 */
+    private static String snippet(String content, String keyword) {
+        String flat = content.replaceAll("\\s+", " ").trim();
+        int idx = flat.toLowerCase().indexOf(keyword.toLowerCase());
+        if (idx < 0) {
+            return flat.length() <= 60 ? flat : flat.substring(0, 60) + "…";
+        }
+        int start = Math.max(0, idx - 24);
+        int end = Math.min(flat.length(), idx + keyword.length() + 36);
+        return (start > 0 ? "…" : "") + flat.substring(start, end) + (end < flat.length() ? "…" : "");
     }
 
     /** 重新生成前使用：删除最后一轮问答（最后一条 assistant 及其前面相邻的 user）。 */

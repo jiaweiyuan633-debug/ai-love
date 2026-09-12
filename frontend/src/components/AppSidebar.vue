@@ -12,7 +12,7 @@ import {
 } from '../stores/conversations'
 import { auth, clearSession } from '../stores/auth'
 import { ui } from '../stores/ui'
-import type { Conversation } from '../api'
+import { exportConversation, searchConversations, type Conversation, type ConversationSearchHit } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -85,6 +85,40 @@ function logout() {
   router.replace('/login')
 }
 
+// ---------- 搜索 ----------
+const searchQ = ref('')
+const results = ref<ConversationSearchHit[]>([])
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  const q = searchQ.value.trim()
+  if (!q) {
+    results.value = []
+    return
+  }
+  searchTimer = setTimeout(async () => {
+    try {
+      results.value = await searchConversations(q)
+    } catch {
+      results.value = []
+    }
+  }, 300)
+}
+
+function jumpToResult(hit: ConversationSearchHit) {
+  setActive(hit.conversationId)
+  if (route.name !== 'chat') router.push('/')
+}
+
+async function doExport(conv: Conversation) {
+  try {
+    await exportConversation(conv.id, conv.title)
+  } catch {
+    // 失败静默
+  }
+}
+
 function fmtTime(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return ''
@@ -115,39 +149,63 @@ function fmtTime(iso: string): string {
       <button class="new-conv" @click="createNew">＋ 新建对话</button>
 
       <div class="conv-section">
-        <div class="section-label">历史对话</div>
-        <div class="conv-list">
-          <div
-            v-for="conv in conversations.list"
-            :key="conv.id"
-            class="conv-item"
-            :class="{ active: conv.id === conversations.activeId && route.name === 'chat' }"
-            @click="openConv(conv.id)"
-          >
-            <template v-if="editingId === conv.id">
-              <input
-                v-model="editTitle"
-                class="rename-input"
-                autofocus
-                @keydown.enter.prevent="saveRename"
-                @keydown.esc="editingId = ''"
-                @blur="saveRename"
-                @click.stop
-              />
-            </template>
-            <template v-else>
-              <span class="conv-title">{{ conv.title }}</span>
-              <span class="conv-actions" @click.stop>
-                <button title="重命名" @click="startRename(conv)">✏️</button>
-                <button title="删除" @click="onDelete(conv)">🗑️</button>
-              </span>
-            </template>
-            <span class="conv-time">{{ fmtTime(conv.updatedAt) }}</span>
+        <input
+          v-model="searchQ"
+          class="search-box"
+          placeholder="🔍 搜索对话内容"
+          @input="onSearchInput"
+        />
+        <template v-if="searchQ.trim()">
+          <div class="section-label">搜索结果（{{ results.length }}）</div>
+          <div class="conv-list">
+            <div
+              v-for="(r, i) in results"
+              :key="i"
+              class="conv-item search-item"
+              @click="jumpToResult(r)"
+            >
+              <span class="conv-title">{{ r.conversationTitle }} · {{ r.role === 'user' ? '我' : '大师' }}</span>
+              <span class="snippet">{{ r.snippet }}</span>
+            </div>
+            <div v-if="results.length === 0" class="empty-tip">没有匹配的对话内容</div>
           </div>
-          <div v-if="conversations.list.length === 0" class="empty-tip">
-            还没有对话，点上方「新建对话」开始吧
+        </template>
+        <template v-else>
+          <div class="section-label">历史对话</div>
+          <div class="conv-list">
+            <div
+              v-for="conv in conversations.list"
+              :key="conv.id"
+              class="conv-item"
+              :class="{ active: conv.id === conversations.activeId && route.name === 'chat' }"
+              @click="openConv(conv.id)"
+            >
+              <template v-if="editingId === conv.id">
+                <input
+                  v-model="editTitle"
+                  class="rename-input"
+                  autofocus
+                  @keydown.enter.prevent="saveRename"
+                  @keydown.esc="editingId = ''"
+                  @blur="saveRename"
+                  @click.stop
+                />
+              </template>
+              <template v-else>
+                <span class="conv-title">{{ conv.title }}</span>
+                <span class="conv-actions" @click.stop>
+                  <button title="导出 Markdown" @click="doExport(conv)">⬇️</button>
+                  <button title="重命名" @click="startRename(conv)">✏️</button>
+                  <button title="删除" @click="onDelete(conv)">🗑️</button>
+                </span>
+              </template>
+              <span class="conv-time">{{ fmtTime(conv.updatedAt) }}</span>
+            </div>
+            <div v-if="conversations.list.length === 0" class="empty-tip">
+              还没有对话，点上方「新建对话」开始吧
+            </div>
           </div>
-        </div>
+        </template>
       </div>
     </template>
     <div v-else class="guest-tip">
@@ -229,6 +287,29 @@ function fmtTime(iso: string): string {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+.search-box {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 10px;
+  outline: none;
+  margin-bottom: 8px;
+}
+.search-box:focus {
+  border-color: var(--a2);
+}
+.snippet {
+  display: block;
+  font-size: 11px;
+  color: var(--text-5);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .section-label {
   font-size: 11px;
