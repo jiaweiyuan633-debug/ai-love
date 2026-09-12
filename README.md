@@ -85,16 +85,17 @@ cd frontend && npm install && npm run dev
 
 ## 上线就绪度
 
-产品已完成"上线冲刺"加固（详见 [docs/LAUNCH.md](docs/LAUNCH.md)）：
+产品已完成"上线冲刺"加固（详见 [docs/LAUNCH.md](docs/LAUNCH.md)）；**商用上线**（证照办理、资源采购、支付与持久化切换、应用市场送审）操作清单见 [docs/COMMERCIAL.md](docs/COMMERCIAL.md)：
 
 | 类别 | 内容 |
 |---|---|
-| 🛡️ 安全 | 接口限流（登录防爆破 10 次/分/IP，AI 端点防刷 30 次/分/用户；`RATE_LIMIT_BACKEND=redis` 可切多实例共享计数）、密码强度校验、JWT + BCrypt、全局异常处理（不暴露堆栈） |
+| 🛡️ 安全 | 接口限流（登录防爆破 10 次/分/IP，AI 端点防刷 30 次/分/用户；`RATE_LIMIT_BACKEND=redis` 可切多实例共享计数）、密码强度校验、JWT + BCrypt（持久化模式拒绝默认密钥启动）、支付模式开关（非 mock 封禁模拟支付端点）、全局异常处理（不暴露堆栈）、桌面端 CSP |
 | 🏥 运维 | `/actuator/health` 健康检查、logback 规范日志、数据源/JWT 全部环境变量化、Dockerfile/FC 配置对齐、GitHub Actions CI（后端测试/前端测试构建/MCP 编译三 job） |
-| ⚖️ 合规 | 用户服务协议 + 隐私政策页、AI 生成内容标识、连续使用 2 小时提醒、陪伴模式情感边界声明 |
+| ⚖️ 合规 | 用户服务协议 + 隐私政策页、AI 生成内容显式 + 隐式双标识（消息元数据 `ai_generated`、SSE `ai-meta` 帧、TTS 音频 ID3 标识、导出文件标注）、连续使用 2 小时提醒、陪伴模式情感边界声明 |
 | ✨ 体验 | SSE 错误帧与断流自动重试、401 统一回登录页、PWA 发版缓存自动失效、移动端贴底面板与全面屏适配 |
-| 💎 会员 | 免费每日 20 条 AI 对话额度，VIP 畅聊无限 + AI 限流翻倍 + 专属徽章；月/季/年三档，模拟支付闭环（接入真实网关仅替换回调） |
-| ✅ 测试 | 后端 `mvn test` 35 例（鉴权/会话/心情成就/限流器/Redis 存储/会员闭环/注销与找回密码/CORS）+ 前端 `npm test` 43 例（XSS 净化/401 与 SSE 错误帧/表单/弹窗/会员/邮箱绑定），CI 自动运行；本地跑测试需 pgvector（建 `ai_love_test` 库 + vector 扩展） |
+| 💎 会员 | 免费每日 20 条 AI 对话额度，VIP 畅聊无限 + AI 限流翻倍 + 专属徽章；月/季/年三档，模拟支付闭环（真实接入仅需实现 `PaymentGateway.verifyNotify` + `PAYMENT_MODE=gateway`） |
+| 📱 客户端 | Tauri 2 桌面端（Windows NSIS / macOS dmg）+ Android APK（GitHub Release 分发）；打包与发布流程见 [docs/TAURI.md](docs/TAURI.md) |
+| ✅ 测试 | 后端 `mvn test` 41 例（鉴权/会话/AI 标识/心情成就/限流器/Redis 存储/会员与支付模式/注销与找回密码/CORS）+ 前端 `npm test` 44 例（XSS 净化/401 与 SSE 错误帧/ai-meta 帧/表单/弹窗/会员/邮箱绑定），CI 自动运行；本地跑测试需 pgvector（建 `ai_love_test` 库 + vector 扩展） |
 
 ## 全流程
 
