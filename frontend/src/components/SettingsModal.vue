@@ -192,7 +192,7 @@ async function buy(planId: string) {
   memberError.value = ''
   try {
     const order = await createMembershipOrder(planId)
-    membership.value = await payMembershipOrder(order.id)
+    membership.value = await payMembershipOrder(order.id, order.priceFen)
   } catch (err) {
     memberError.value = err instanceof Error ? err.message : '支付失败，请稍后再试'
   } finally {

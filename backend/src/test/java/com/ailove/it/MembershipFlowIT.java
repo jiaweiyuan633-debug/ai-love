@@ -1,5 +1,6 @@
 package com.ailove.it;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import com.ailove.support.BaseIT;
@@ -10,8 +11,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 会员订阅闭环集成测试：套餐目录 → 状态查询 → 下单 → 模拟支付激活 VIP →
- * 重复支付幂等 → 续费顺延有效期。
+ * 会员订阅闭环集成测试：套餐目录 → 状态查询 → 下单 → 模拟支付（凭证+金额校验）激活 VIP →
+ * 重复支付幂等 → 续费顺延有效期 → 校验失败不得入账。
  */
 class MembershipFlowIT extends BaseIT {
 
@@ -48,33 +49,48 @@ class MembershipFlowIT extends BaseIT {
         assertEquals(1800, order.path("priceFen").asLong());
         String orderId = order.path("id").asText();
 
-        // 支付激活
-        var afterPay = post("/api/membership/orders/" + orderId + "/pay", null, token);
+        // 支付激活（模拟收银台：凭证 + 金额必须与订单一致）
+        var afterPay = objectMapperRead(pay(token, orderId, 1800L, "MOCK-TICKET"));
         assertTrue(afterPay.path("vip").asBoolean());
         assertEquals("month", afterPay.path("plan").asText());
-        assertFalse(afterPay.path("vipUntil").isNull());
         String vipUntilFirst = afterPay.path("vipUntil").asText();
+        assertFalse(vipUntilFirst.isBlank());
 
         // 重复支付：幂等（有效期不再顺延）
-        var repeatPay = post("/api/membership/orders/" + orderId + "/pay", null, token);
-        assertTrue(repeatPay.path("vip").asBoolean());
+        var repeatPay = objectMapperRead(pay(token, orderId, 1800L, "MOCK-TICKET"));
         assertEquals(vipUntilFirst, repeatPay.path("vipUntil").asText());
 
-        // 订单状态已更新为 paid
-        var me = get("/api/membership", token);
-        assertTrue(me.path("vip").asBoolean());
-        assertEquals(0, me.path("dailyUsed").asInt());
+        // 状态查询：已激活
+        assertTrue(get("/api/membership", token).path("vip").asBoolean());
+    }
+
+    @Test
+    void 凭证缺失或金额不符不得入账() throws Exception {
+        String token = newUser();
+        String orderId = post("/api/membership/orders", Map.of("plan", "month"), token)
+                .path("id").asText();
+
+        // 缺凭证
+        assertEquals(400, pay(token, orderId, 1800L, null).getStatusCode().value());
+        // 金额与订单不符（少付 / 多付）
+        assertEquals(400, pay(token, orderId, 1L, "MOCK-TICKET").getStatusCode().value());
+        assertEquals(400, pay(token, orderId, 999999L, "MOCK-TICKET").getStatusCode().value());
+        assertFalse(get("/api/membership", token).path("vip").asBoolean());
+
+        // 正确金额后激活
+        assertEquals(200, pay(token, orderId, 1800L, "MOCK-TICKET").getStatusCode().value());
+        assertTrue(get("/api/membership", token).path("vip").asBoolean());
     }
 
     @Test
     void 续费在剩余有效期上顺延() throws Exception {
         String token = newUser();
         var order1 = post("/api/membership/orders", Map.of("plan", "month"), token);
-        var pay1 = post("/api/membership/orders/" + order1.path("id").asText() + "/pay", null, token);
-        String until1 = pay1.path("vipUntil").asText();
+        String until1 = objectMapperRead(pay(token, order1.path("id").asText(), 1800L, "MOCK-TICKET"))
+                .path("vipUntil").asText();
 
         var order2 = post("/api/membership/orders", Map.of("plan", "year"), token);
-        var pay2 = post("/api/membership/orders/" + order2.path("id").asText() + "/pay", null, token);
+        var pay2 = objectMapperRead(pay(token, order2.path("id").asText(), 15800L, "MOCK-TICKET"));
         String until2 = pay2.path("vipUntil").asText();
 
         assertTrue(until2.compareTo(until1) > 0, "续费后有效期应顺延: " + until1 + " -> " + until2);
@@ -86,8 +102,26 @@ class MembershipFlowIT extends BaseIT {
         String tokenA = newUser();
         String tokenB = newUser();
         var order = post("/api/membership/orders", Map.of("plan", "month"), tokenA);
-        var resp = raw("POST", "/api/membership/orders/" + order.path("id").asText() + "/pay", null, tokenB);
+        var resp = pay(tokenB, order.path("id").asText(), 1800L, "MOCK-TICKET");
         assertEquals(404, resp.getStatusCode().value());
         assertFalse(get("/api/membership", tokenB).path("vip").asBoolean());
+    }
+
+    /** 模拟支付请求；amountFen/credential 传 null 表示不携带对应字段。 */
+    private org.springframework.http.ResponseEntity<String> pay(
+            String token, String orderId, Long amountFen, String credential) throws Exception {
+        Map<String, Object> body = new HashMap<>();
+        if (amountFen != null) {
+            body.put("amountFen", amountFen);
+        }
+        if (credential != null) {
+            body.put("credential", credential);
+        }
+        return raw("POST", "/api/membership/orders/" + orderId + "/pay", body, token);
+    }
+
+    private com.fasterxml.jackson.databind.JsonNode objectMapperRead(
+            org.springframework.http.ResponseEntity<String> resp) throws Exception {
+        return new com.fasterxml.jackson.databind.ObjectMapper().readTree(resp.getBody());
     }
 }

@@ -20,6 +20,16 @@ public class MembershipConfig {
         return client != null ? new MembershipStore(client) : new MembershipStore();
     }
 
+    /**
+     * 支付网关按 app.payment.mode 装配：mock=模拟收银台（默认，演示闭环）/
+     * gateway=真实网关（接入时替换此处的 null 为具体实现，见 docs/COMMERCIAL.md）/ off=关闭。
+     * 非 mock 模式下返回 null（NullBean），模拟支付端点在 Controller 中被 403 拦截。
+     */
+    @Bean
+    public PaymentGateway paymentGateway(@Value("${app.payment.mode:mock}") String mode) {
+        return "mock".equals(mode) ? new MockGateway() : null;
+    }
+
     @Bean
     public FilterRegistrationBean<DailyQuotaFilter> dailyQuotaFilter(
             MembershipStore store,

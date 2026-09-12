@@ -649,8 +649,13 @@ export async function createMembershipOrder(plan: string): Promise<MembershipOrd
   return resp.json()
 }
 
-export async function payMembershipOrder(id: string): Promise<MembershipStatus> {
-  const resp = await authRequest(`/api/membership/orders/${encodeURIComponent(id)}/pay`, { method: 'POST' })
+/** 模拟支付：携带凭证与订单金额（分），后端网关校验金额一致才入账 */
+export async function payMembershipOrder(id: string, priceFen: number): Promise<MembershipStatus> {
+  const resp = await authRequest(`/api/membership/orders/${encodeURIComponent(id)}/pay`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential: 'MOCK-TICKET', amountFen: priceFen }),
+  })
   if (!resp.ok) throw await errorOf(resp, '支付失败')
   return resp.json()
 }

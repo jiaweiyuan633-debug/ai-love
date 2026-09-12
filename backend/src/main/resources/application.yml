@@ -106,9 +106,13 @@ app:
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）
   knowledge:
     enabled: ${KNOWLEDGE_ENABLED:true}
-  # 会员订阅：免费用户每日 AI 对话额度（VIP 不限 + AI 每分钟限流翻倍）；支付为模拟回调
+  # 会员订阅：免费用户每日 AI 对话额度（VIP 不限 + AI 每分钟限流翻倍）
   membership:
     daily-free-limit: ${MEMBERSHIP_DAILY_FREE_LIMIT:20}
+  # 支付模式：mock=模拟收银台（演示闭环，默认）/ gateway=真实支付网关（异步通知验签入账）/ off=关闭支付
+  # 商用上线前必须从 mock 切换为 gateway 或 off（模拟端点会随之一并关闭，防止绕过网关自刷 VIP）
+  payment:
+    mode: ${PAYMENT_MODE:mock}
   # 云端内联恋爱工具（与 MCP 远程工具二选一：云端 true + MCP 关闭；本地默认走 MCP）
   inline-love-tools:
     enabled: ${INLINE_LOVE_TOOLS:false}
