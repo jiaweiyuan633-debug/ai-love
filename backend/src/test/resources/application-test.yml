@@ -1,0 +1,23 @@
+# 集成测试专用配置（@ActiveProfiles("test") 时生效）
+# - 独立测试库 ai_love_test（与开发库隔离，schema.sql 自动建表），需本地 docker pgvector 运行且已启用 vector 扩展
+# - DashScope 用哑 key：AI 调用全部失败并走各 Service 的兜底文案，测试零成本、不依赖网络
+# - MCP 客户端关闭（无 8102 依赖）；限流关闭（避免用例间互相 429）
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:15432/ai_love_test
+    username: ai_love
+    password: ai_love123
+  ai:
+    openai:
+      api-key: sk-test-dummy-key-not-real
+    mcp:
+      client:
+        enabled: false
+
+app:
+  rate-limit:
+    enabled: false
+
+logging:
+  level:
+    root: WARN
