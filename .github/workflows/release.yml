@@ -2,7 +2,7 @@ name: Release
 
 # 推送 v* 标签（或手动触发）时构建原生客户端：
 # - Windows 安装包(NSIS) + macOS dmg(tauri-action)
-# - Android APK(调试签名，可直接侧载安装；正式上架需自行配置签名)
+# - Android APK(调试签名，可直接侧载安装；应用市场上架需按下方模板配置正式签名)
 on:
   push:
     tags: ['v*']
@@ -78,6 +78,23 @@ jobs:
       - name: 初始化 Android 工程
         working-directory: frontend
         run: npx tauri android init --ci
+      # —— 正式签名（应用市场上架用；密钥自保管、绝不入库）。启用步骤：
+      #    1) 本地生成 keystore（命令见 docs/COMMERCIAL.md 第五节）
+      #    2) 配置 GitHub Secrets：ANDROID_KEYSTORE（keystore 文件的 base64：base64 -w0 ailove.keystore）、
+      #       ANDROID_KEYSTORE_PASSWORD、ANDROID_KEY_ALIAS、ANDROID_KEY_PASSWORD
+      #    3) 取消下方“还原正式签名 keystore”注释，并把“构建 APK”改为
+      #       `npx tauri android build --apk --target aarch64`（去掉 --debug），
+      #       上传/上传到 Release 的通配改为 "*-release.apk"
+      # - name: 还原正式签名 keystore
+      #   working-directory: frontend
+      #   run: |
+      #     echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > src-tauri/gen/android/ailove.keystore
+      #     cat > src-tauri/gen/android/keystore.properties <<'EOF'
+      #     storeFile=ailove.keystore
+      #     storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      #     keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+      #     keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+      #     EOF
       - name: 构建 APK（调试签名，可直接安装）
         working-directory: frontend
         run: npx tauri android build --apk --debug --target aarch64

@@ -45,12 +45,23 @@ resources:
       environmentVariables:
         DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
         PERSISTENCE_ENABLED: "false" # 云端暂无数据库：关闭登录/持久化（体验模式）。买了 RDS 后改 true，并取消下面数据源/JWT 变量的注释
-        # —— 买了 RDS 后取消注释（同时把上面 PERSISTENCE_ENABLED / KNOWLEDGE_ENABLED 改 true），见 docs/LAUNCH.md ——
+        # —— 买了 RDS 后取消注释（同时把上面 PERSISTENCE_ENABLED / KNOWLEDGE_ENABLED 改 true），完整清单见 docs/COMMERCIAL.md 第三节 ——
         # SPRING_DATASOURCE_URL: "jdbc:postgresql://pgm-xxxxxxxx.pg.rds.aliyuncs.com:5432/ai_love"
         # SPRING_DATASOURCE_USERNAME: "ai_love"
         # SPRING_DATASOURCE_PASSWORD: ${env(RDS_PASSWORD)}
-        # JWT_SECRET: ${env(JWT_SECRET)} # 强随机串（至少 32 字节），生产务必设置，绝不能用默认值
+        # JWT_SECRET: ${env(JWT_SECRET)} # 强随机串（至少 32 字节）；不设置时持久化模式会拒绝启动（fail-fast）
         # JWT_EXPIRE_HOURS: "168"
+        # RATE_LIMIT_BACKEND: "redis" # 多实例共享限流计数（需云 Redis，spring.data.redis.* 一并配置）
+        # SPRING_DATA_REDIS_HOST: "r-xxxxxxxx.redis.rds.aliyuncs.com"
+        # SPRING_DATA_REDIS_PORT: "6379"
+        # SPRING_DATA_REDIS_PASSWORD: ${env(REDIS_PASSWORD)}
+        # —— SMTP（启用找回密码/邮箱绑定验证码；不配则对应接口 503 优雅降级；发件人即 USERNAME）——
+        # SPRING_MAIL_HOST: "smtp.qq.com"
+        # SPRING_MAIL_PORT: "587"
+        # SPRING_MAIL_USERNAME: "xxx@qq.com"
+        # SPRING_MAIL_PASSWORD: ${env(SMTP_PASSWORD)} # QQ 邮箱为授权码，非登录密码
+        # —— 支付（商用上线前必须离开默认 mock，防止自刷 VIP）：mock/gateway/off ——
+        # PAYMENT_MODE: "gateway" # 接真实网关后用 gateway；未开通前可用 off 直接关闭支付
         KNOWLEDGE_ENABLED: "false" # 买了 RDS 后改 true 并配置数据源变量
         INLINE_LOVE_TOOLS: "true" # 云端内联图片搜索/花语工具（替代有状态的 MCP 远程调用）
         MCP_CLIENT_ENABLED: "false"
