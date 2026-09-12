@@ -47,3 +47,10 @@ CREATE TABLE IF NOT EXISTS couples (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_couples_users ON couples (user_a, user_b);
+
+-- 每日情话：一天一句，全站共享缓存
+CREATE TABLE IF NOT EXISTS daily_quotes (
+    qdate      DATE PRIMARY KEY,
+    content    VARCHAR(500) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
