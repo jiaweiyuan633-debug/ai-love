@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   fetchDailyQuote,
+  fetchSuggestions,
   getCoupleStatus,
   listMessages,
   openSseStream,
@@ -10,7 +11,9 @@ import {
   type StoredMessage,
 } from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
+import { auth } from '../stores/auth'
 import { settings } from '../stores/settings'
+import { renderMarkdown } from '../utils/markdown'
 import { feedSpeech, finishSpeech, speakFull, speaking, stopSpeech } from '../composables/useSpeech'
 import { useVoiceInput, voiceInputSupported } from '../composables/useVoiceInput'
 
@@ -18,6 +21,7 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   rag?: boolean
+  ts?: number
 }
 
 const messages = ref<ChatMessage[]>([])
@@ -27,6 +31,7 @@ const streaming = ref(false)
 const ragEnabled = ref(false)
 const error = ref('')
 const copiedIndex = ref(-1)
+const followUps = ref<string[]>([])
 let closeStream: (() => void) | null = null
 
 const suggestions = [
@@ -63,14 +68,20 @@ async function loadHistory(id: string) {
   streaming.value = false
   messages.value = []
   error.value = ''
-  if (!persistenceEnabled() || !id) return
-  try {
-    const stored: StoredMessage[] = await listMessages(id)
-    messages.value = stored.map((m) => ({ role: m.role, content: m.content, rag: false }))
-    void scrollToBottom()
-  } catch {
-    // 历史加载失败不阻塞聊天
-  }
+    if (!persistenceEnabled() || !id) return
+    try {
+      const stored: StoredMessage[] = await listMessages(id)
+      messages.value = stored.map((m) => ({
+        role: m.role,
+        content: m.content,
+        rag: false,
+        ts: Date.parse(m.createdAt) || undefined,
+      }))
+      followUps.value = []
+      void scrollToBottom()
+    } catch {
+      // 历史加载失败不阻塞聊天
+    }
 }
 
 // 整页刷新时 activeId 从 localStorage 恢复，watch 不会触发，需要手动加载一次
@@ -135,13 +146,21 @@ async function scrollToBottom() {
   box?.scrollTo({ top: box.scrollHeight })
 }
 
-/** 轻量 Markdown 渲染：先转义 HTML 再转换加粗/行内代码，保证安全 */
-function renderMd(text: string): string {
-  let s = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
-  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>')
-  s = s.replace(/^#{1,4}\s+(.+)$/gm, '<strong>$1</strong>')
-  return s
+function fmtTs(ts?: number): string {
+  if (!ts) return ''
+  const d = new Date(ts)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+const meInitial = computed(() => auth.user?.nickname?.slice(0, 1) || '我')
+
+/** 流结束后拉取追问建议；会话已切换则丢弃 */
+function loadFollowUps(convId: string | null) {
+  if (!persistenceEnabled() || !convId) return
+  void (async () => {
+    const list = await fetchSuggestions(convId)
+    if (conversations.activeId === convId) followUps.value = list
+  })()
 }
 
 function send(text?: string) {
@@ -152,6 +171,7 @@ async function streamSend(raw: string, regenerate: boolean) {
   const message = raw.trim()
   if (!message || streaming.value) return
   error.value = ''
+  followUps.value = []
 
   if (persistenceEnabled() && !conversations.activeId) {
     suppressConvWatch = true
@@ -166,14 +186,15 @@ async function streamSend(raw: string, regenerate: boolean) {
   }
 
   if (!regenerate) {
-    messages.value.push({ role: 'user', content: message })
+    messages.value.push({ role: 'user', content: message, ts: Date.now() })
   }
   input.value = ''
   // 通过响应式数组索引写入，保证每个 token 都触发界面更新（流式逐字渲染）
-  messages.value.push({ role: 'assistant', content: '', rag: ragEnabled.value })
+  messages.value.push({ role: 'assistant', content: '', rag: ragEnabled.value, ts: Date.now() })
   const replyIndex = messages.value.length - 1
   void scrollToBottom()
   streaming.value = true
+  const convIdForReply = conversations.activeId
 
   const wasDefaultTitle =
     persistenceEnabled() &&
@@ -207,6 +228,7 @@ async function streamSend(raw: string, regenerate: boolean) {
         void refreshList()
         // 标题由后端异步生成，稍后再刷新一次侧边栏
         if (wasDefaultTitle) setTimeout(() => void refreshList(), 2500)
+        loadFollowUps(convIdForReply)
       }
     },
     (msg) => {
@@ -338,17 +360,39 @@ function resetSession() {
         </div>
       </div>
       <div v-for="(m, i) in messages" :key="i" class="msg" :class="m.role">
-        <div class="bubble" v-html="renderMd(m.content)"></div>
-        <span v-if="streaming && i === messages.length - 1 && m.role === 'assistant'" class="cursor">▌</span>
-        <span v-if="m.role === 'assistant' && m.rag" class="rag-badge">📚 知识库</span>
-        <div
-          v-if="m.role === 'assistant' && m.content && !(streaming && i === messages.length - 1)"
-          class="msg-actions"
-        >
-          <button @click="copyMessage(i)">{{ copiedIndex === i ? '✅ 已复制' : '📋 复制' }}</button>
-          <button v-if="i === messages.length - 1" @click="regenerate">🔄 重新生成</button>
-          <button @click="speakFull(m.content)">🔊 朗读</button>
+        <div v-if="m.role === 'assistant'" class="avatar ai">💘</div>
+        <div class="msg-main">
+          <div
+            v-if="m.role === 'assistant' && streaming && i === messages.length - 1 && !m.content"
+            class="bubble thinking"
+          >
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          </div>
+          <div
+            v-else
+            class="bubble"
+            v-html="renderMarkdown(
+              streaming && i === messages.length - 1 && m.role === 'assistant' ? m.content + ' ▌' : m.content,
+            )"
+          ></div>
+          <div class="msg-meta">
+            <span v-if="m.ts" class="msg-time">{{ fmtTs(m.ts) }}</span>
+            <span v-if="m.role === 'assistant' && m.rag" class="rag-badge">📚 知识库</span>
+          </div>
+          <div
+            v-if="m.role === 'assistant' && m.content && !(streaming && i === messages.length - 1)"
+            class="msg-actions"
+          >
+            <button @click="copyMessage(i)">{{ copiedIndex === i ? '✅ 已复制' : '📋 复制' }}</button>
+            <button v-if="i === messages.length - 1" @click="regenerate">🔄 重新生成</button>
+            <button @click="speakFull(m.content)">🔊 朗读</button>
+          </div>
         </div>
+        <div v-if="m.role === 'user'" class="avatar me">{{ meInitial }}</div>
+      </div>
+      <div v-if="followUps.length && !streaming" class="follow-ups">
+        <div class="fu-label">接着问：</div>
+        <button v-for="f in followUps" :key="f" class="follow-up" @click="send(f)">{{ f }}</button>
       </div>
     </div>
 
@@ -537,20 +581,118 @@ function resetSession() {
 }
 .msg {
   display: flex;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 16px;
   position: relative;
+  align-items: flex-start;
 }
 .msg.user {
   justify-content: flex-end;
 }
-.bubble {
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  flex-shrink: 0;
+  user-select: none;
+  margin-top: 2px;
+}
+.avatar.ai {
+  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+}
+.avatar.me {
+  background: var(--bg-card);
+  color: var(--text-2);
+  border: 1px solid var(--border-strong);
+  font-size: 14px;
+  font-weight: 600;
+}
+.msg-main {
   max-width: 72%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.msg.user .msg-main {
+  align-items: flex-end;
+}
+.bubble {
   padding: 10px 14px;
   border-radius: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 14px;
+}
+.msg.user .bubble {
+  background: var(--accent-grad);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+  white-space: pre-wrap;
+}
+.msg.assistant .bubble {
+  background: var(--bg-card);
+  color: var(--text-2);
+  border-bottom-left-radius: 4px;
+}
+/* 富 Markdown 元素样式（marked 渲染产物） */
+.bubble :deep(p) {
+  margin: 0 0 6px;
+}
+.bubble :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.bubble :deep(ul),
+.bubble :deep(ol) {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+.bubble :deep(li) {
+  margin: 2px 0;
+}
+.bubble :deep(blockquote) {
+  border-left: 3px solid var(--a2);
+  padding: 2px 10px;
+  margin: 6px 0;
+  color: var(--text-3);
+  background: var(--bg-soft);
+  border-radius: 4px;
+}
+.bubble :deep(a) {
+  color: var(--a2);
+}
+.bubble :deep(h1),
+.bubble :deep(h2),
+.bubble :deep(h3),
+.bubble :deep(h4) {
+  font-size: 15px;
+  margin: 8px 0 4px;
+}
+.bubble :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+.bubble :deep(table) {
+  border-collapse: collapse;
+  margin: 6px 0;
+}
+.bubble :deep(th),
+.bubble :deep(td) {
+  border: 1px solid var(--border-strong);
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.bubble :deep(pre) {
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+  white-space: pre;
 }
 .bubble :deep(code) {
   background: var(--code-bg);
@@ -559,32 +701,80 @@ function resetSession() {
   font-family: Consolas, monospace;
   font-size: 13px;
 }
-.msg.user .bubble {
-  background: var(--accent-grad);
-  color: #fff;
-  border-bottom-right-radius: 4px;
+.bubble :deep(pre code) {
+  background: none;
+  padding: 0;
 }
-.msg.assistant .bubble {
+.bubble.thinking {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  padding: 14px 16px;
+}
+.bubble.thinking .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-4);
+  animation: think 1.2s infinite;
+}
+.bubble.thinking .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.bubble.thinking .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes think {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+.msg-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.msg-time {
+  font-size: 11px;
+  color: var(--text-4);
+}
+.follow-ups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px 44px;
+}
+.fu-label {
+  font-size: 12px;
+  color: var(--text-4);
+}
+.follow-up {
   background: var(--bg-card);
+  border: 1px solid var(--border-strong);
   color: var(--text-2);
-  border-bottom-left-radius: 4px;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
-.cursor {
-  animation: blink 1s infinite;
-}
-@keyframes blink {
-  50% { opacity: 0; }
+.follow-up:hover {
+  border-color: var(--a2);
+  color: #fff;
 }
 .msg-actions {
-  position: absolute;
   display: flex;
   gap: 6px;
+  margin-top: 6px;
   opacity: 0;
   transition: opacity 0.15s;
-}
-.msg.assistant .msg-actions {
-  left: 0;
-  bottom: -10px;
 }
 .msg:hover .msg-actions {
   opacity: 1;
@@ -603,8 +793,6 @@ function resetSession() {
   border-color: var(--a2);
 }
 .rag-badge {
-  align-self: flex-start;
-  margin-top: 2px;
   font-size: 11px;
   color: var(--a2);
   background: rgba(167, 107, 255, 0.15);
@@ -729,7 +917,7 @@ function resetSession() {
   .toolbar {
     padding-left: 52px;
   }
-  .bubble {
+  .msg-main {
     max-width: 86%;
   }
 }

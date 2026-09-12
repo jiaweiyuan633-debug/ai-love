@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
 import { openSseStream } from '../api'
+import { renderMarkdown } from '../utils/markdown'
 
 const task = ref('')
 const output = ref('')
@@ -85,7 +86,7 @@ function stop() {
     <div v-if="error" class="error-bar">{{ error }}</div>
 
     <div class="yumanus-output" :class="{ empty: !output }">
-      <pre v-if="output">{{ output }}</pre>
+      <div v-if="output" class="md-body" v-html="renderMarkdown(output)"></div>
       <div v-else class="placeholder">
         {{ running ? 'YuManus 正在思考…' : '执行过程将在这里实时展示' }}
       </div>
@@ -189,14 +190,58 @@ function stop() {
   border-radius: 14px;
   padding: 16px;
 }
-.yumanus-output pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-family: 'Cascadia Code', Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.7;
+.yumanus-output .md-body {
+  font-size: 13.5px;
+  line-height: 1.8;
   color: var(--text-2);
+  word-break: break-word;
+}
+.md-body :deep(p) {
+  margin: 0 0 8px;
+}
+.md-body :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.md-body :deep(ul),
+.md-body :deep(ol) {
+  margin: 4px 0 8px;
+  padding-left: 20px;
+}
+.md-body :deep(code) {
+  background: var(--code-bg);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: Consolas, monospace;
+  font-size: 12.5px;
+}
+.md-body :deep(pre) {
+  background: var(--code-bg);
+  border-radius: 8px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+  white-space: pre;
+}
+.md-body :deep(blockquote) {
+  border-left: 3px solid var(--a2);
+  padding: 2px 10px;
+  margin: 6px 0;
+  color: var(--text-3);
+  background: var(--bg-soft);
+  border-radius: 4px;
+}
+.md-body :deep(h1),
+.md-body :deep(h2),
+.md-body :deep(h3),
+.md-body :deep(h4) {
+  font-size: 15px;
+  margin: 10px 0 6px;
+  color: var(--text);
+}
+.md-body :deep(hr) {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
 }
 .placeholder {
   text-align: center;

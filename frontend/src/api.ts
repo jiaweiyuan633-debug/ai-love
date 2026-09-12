@@ -233,6 +233,18 @@ export async function exportConversation(id: string, title: string): Promise<voi
   URL.revokeObjectURL(url)
 }
 
+/** 按最后一轮问答生成追问建议；失败静默返回空数组（不阻塞聊天） */
+export async function fetchSuggestions(id: string): Promise<string[]> {
+  try {
+    const resp = await authRequest(`/api/conversations/${id}/suggestions`, { method: 'POST' })
+    if (!resp.ok) return []
+    const data = await resp.json()
+    return Array.isArray(data.suggestions) ? data.suggestions : []
+  } catch {
+    return []
+  }
+}
+
 // ================= 长期记忆 =================
 
 export interface MemoryItem {

@@ -35,10 +35,12 @@ public class ConversationController {
 
     private final ConversationStore store;
     private final ChatMemory chatMemory;
+    private final SuggestionService suggestionService;
 
-    public ConversationController(ConversationStore store, ChatMemory chatMemory) {
+    public ConversationController(ConversationStore store, ChatMemory chatMemory, SuggestionService suggestionService) {
         this.store = store;
         this.chatMemory = chatMemory;
+        this.suggestionService = suggestionService;
     }
 
     @GetMapping
@@ -56,6 +58,13 @@ public class ConversationController {
     public List<ConversationStore.StoredMessage> messages(@PathVariable String id) {
         requireOwned(id);
         return store.listMessages(id);
+    }
+
+    /** 按最后一轮问答生成 3 个追问建议（进程内缓存）。 */
+    @PostMapping("/{id}/suggestions")
+    public Map<String, Object> suggestions(@PathVariable String id) {
+        requireOwned(id);
+        return Map.of("suggestions", suggestionService.suggest(id));
     }
 
     @GetMapping("/search")
