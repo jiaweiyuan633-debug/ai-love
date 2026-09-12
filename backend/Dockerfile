@@ -13,5 +13,6 @@ COPY --from=build /app/target/*.jar app.jar
 # PDF 报告输出目录
 RUN mkdir -p /app/data/reports
 ENV TZ=Asia/Shanghai JAVA_OPTS=""
-EXPOSE 8101
+# 与 ENTRYPOINT 中 --server.port=9000、s.yaml customContainerConfig.port 保持一致
+EXPOSE 9000
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar --server.port=9000"]

@@ -6,6 +6,7 @@ import com.ailove.auth.AuthContext;
 import com.ailove.chat.AutoTitleService;
 import com.ailove.chat.ConversationStore;
 import com.ailove.chat.MemoryService;
+import com.ailove.common.AiErrorMessages;
 import com.ailove.couple.CoupleService;
 import com.ailove.persona.PersonaCatalog;
 import org.springframework.ai.chat.client.ChatClient;
@@ -148,6 +149,9 @@ public class LoveChatController {
                 .content()
                 .doOnNext(reply::append)
                 .map(token -> ServerSentEvent.builder(token).build())
+                // AI 上游报错/审核拦截：发一条错误帧再正常收尾，前端不再永远停在“思考中”
+                .onErrorResume(e -> Flux.just(
+                        ServerSentEvent.builder("[ERROR] " + AiErrorMessages.friendly(e)).build()))
                 .concatWith(Flux.just(ServerSentEvent.builder("[DONE]").build()))
                 .doFinally(signal -> {
                     String content = reply.toString();

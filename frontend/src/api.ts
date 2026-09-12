@@ -137,6 +137,11 @@ export function openSseStream(
             finish(onDone)
             return
           }
+          // 服务端 AI 上游报错帧（内容审核拦截/服务不可用），此后流正常收尾
+          if (data.startsWith('[ERROR] ')) {
+            finish(() => onError?.(data.slice(8) || 'AI 服务暂时不可用'))
+            return
+          }
           onData(data)
         }
       }

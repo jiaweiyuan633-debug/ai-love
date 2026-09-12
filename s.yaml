@@ -44,7 +44,13 @@ resources:
         port: 9000
       environmentVariables:
         DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
-        PERSISTENCE_ENABLED: "false" # 云端暂无数据库：关闭登录/持久化（体验模式）。买了 RDS 后改 true 并配置数据源/JWT 变量
+        PERSISTENCE_ENABLED: "false" # 云端暂无数据库：关闭登录/持久化（体验模式）。买了 RDS 后改 true，并取消下面数据源/JWT 变量的注释
+        # —— 买了 RDS 后取消注释（同时把上面 PERSISTENCE_ENABLED / KNOWLEDGE_ENABLED 改 true），见 docs/LAUNCH.md ——
+        # SPRING_DATASOURCE_URL: "jdbc:postgresql://pgm-xxxxxxxx.pg.rds.aliyuncs.com:5432/ai_love"
+        # SPRING_DATASOURCE_USERNAME: "ai_love"
+        # SPRING_DATASOURCE_PASSWORD: ${env(RDS_PASSWORD)}
+        # JWT_SECRET: ${env(JWT_SECRET)} # 强随机串（至少 32 字节），生产务必设置，绝不能用默认值
+        # JWT_EXPIRE_HOURS: "168"
         KNOWLEDGE_ENABLED: "false" # 买了 RDS 后改 true 并配置数据源变量
         INLINE_LOVE_TOOLS: "true" # 云端内联图片搜索/花语工具（替代有状态的 MCP 远程调用）
         MCP_CLIENT_ENABLED: "false"

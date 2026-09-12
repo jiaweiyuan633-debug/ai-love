@@ -11,9 +11,10 @@ spring:
     exclude: ${SPRING_AUTOCONFIGURE_EXCLUDE:}
   datasource:
     # 15432 = docker/docker-compose.yml 中 pgvector 的宿主机端口（避让本机原生 PostgreSQL 的 5432）
-    url: jdbc:postgresql://127.0.0.1:15432/ai_love
-    username: ai_love
-    password: ai_love123
+    # 生产/RDS 通过 SPRING_DATASOURCE_URL/USERNAME/PASSWORD 环境变量覆盖
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://127.0.0.1:15432/ai_love}
+    username: ${SPRING_DATASOURCE_USERNAME:ai_love}
+    password: ${SPRING_DATASOURCE_PASSWORD:ai_love123}
   servlet:
     multipart:
       max-file-size: 20MB
@@ -55,6 +56,11 @@ app:
   # 持久化/用户系统总开关（需要数据库）。云端无数据库时置 false：关闭登录与会话持久化，进入体验模式
   persistence:
     enabled: ${PERSISTENCE_ENABLED:true}
+  # 接口限流：登录/注册按 IP 每分钟 10 次（防爆破）；AI 消耗端点按用户每分钟 30 次（防刷）
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+    auth-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:10}
+    ai-per-minute: ${RATE_LIMIT_AI_PER_MINUTE:30}
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）
   knowledge:
     enabled: ${KNOWLEDGE_ENABLED:true}

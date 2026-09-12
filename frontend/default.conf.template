@@ -7,6 +7,14 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # 文本类资源 gzip 压缩（首屏加载）；text/event-stream 不在列表内，SSE 不受影响
+    gzip on;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_types text/plain text/css text/xml application/javascript application/json application/xml application/manifest+json image/svg+xml;
+
     # 精确匹配 /knowledge 页面路由（避免 nginx 对带斜杠前缀 location 的自动补斜杠 301）
     location = /knowledge {
         try_files /index.html =404;
@@ -17,11 +25,26 @@ server {
         try_files $uri /index.html;
     }
 
+    # 后端 JSON 接口反代：登录/用户 + 会话/记忆/朋友圈/心情/成就等
+    location /auth/ {
+        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header X-Real-IP $remote_addr;
+        client_max_body_size 1m;
+    }
+    location /api/ {
+        proxy_pass ${BACKEND_UPSTREAM};
+        proxy_http_version 1.1;
+        proxy_set_header X-Real-IP $remote_addr;
+        client_max_body_size 2m;
+    }
+
     # SSE：必须关闭缓冲
     location /ai/ {
         proxy_pass ${BACKEND_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Connection '';
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 600s;
@@ -29,6 +52,7 @@ server {
     location /knowledge/ {
         proxy_pass ${BACKEND_UPSTREAM};
         proxy_http_version 1.1;
+        proxy_set_header X-Real-IP $remote_addr;
         client_max_body_size 20m;
     }
 }
