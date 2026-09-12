@@ -1,0 +1,89 @@
+name: Release
+
+# 推送 v* 标签（或手动触发）时构建原生客户端：
+# - Windows 安装包(NSIS/MSI) + macOS dmg(tauri-action)
+# - Android APK(调试签名，可直接侧载安装；正式上架需自行配置签名)
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
+      # 打包时把 API 指向云端前端域名（nginx 统一反代接口）；换域名时在此修改
+      - name: 构建并发布
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_API_BASE: https://ai-lovefrontend-xmplmppqhf.cn-hangzhou.fcapp.run
+        with:
+          projectPath: frontend
+          tagName: ${{ github.ref_name }}
+          releaseName: 'AI 恋爱大师 ${{ github.ref_name }}'
+          releaseBody: '桌面客户端安装包（Windows NSIS/MSI、macOS dmg）。账号与数据和网页/PWA 版互通。macOS 首次打开需右键→打开绕过 Gatekeeper（未签名）。'
+          releaseDraft: false
+          prerelease: false
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+      - name: 准备 Android SDK/NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "ndk;27.0.12077973" >/dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
+      - name: 初始化 Android 工程
+        working-directory: frontend
+        run: npx tauri android init --ci
+      - name: 构建 APK（调试签名，可直接安装）
+        working-directory: frontend
+        run: npx tauri android build --apk --debug --target aarch64
+        env:
+          VITE_API_BASE: https://ai-lovefrontend-xmplmppqhf.cn-hangzhou.fcapp.run
+      - name: 上传 APK 构件
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-love-android-apk
+          path: frontend/src-tauri/gen/android/app/build/outputs/apk/**/*-debug.apk
+          if-no-files-found: error

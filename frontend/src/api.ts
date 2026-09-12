@@ -1,5 +1,15 @@
 import { auth, clearSession } from './stores/auth'
 
+/**
+ * API 基础地址：Web 部署为同源相对路径（空串）；
+ * Tauri 桌面/移动端打包时经 VITE_API_BASE 指向云端前端域名（nginx 统一反代接口）。
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/+$/, '') ?? ''
+
+function withBase(path: string): string {
+  return API_BASE + path
+}
+
 export interface User {
   id: number
   username: string
@@ -16,7 +26,7 @@ export interface TokenResponse {
 // ================= 认证 API（独立于 authHeaders，登录前无 token） =================
 
 export async function fetchAuthStatus(): Promise<boolean> {
-  const resp = await fetch('/auth/status')
+  const resp = await fetch(withBase('/auth/status'))
   if (!resp.ok) return false
   const data = await resp.json()
   // 忘记密码入口依赖后端邮件服务配置
@@ -35,7 +45,7 @@ async function errorOf(resp: Response, fallback: string): Promise<Error> {
 }
 
 export async function login(username: string, password: string): Promise<TokenResponse> {
-  const resp = await fetch('/auth/login', {
+  const resp = await fetch(withBase('/auth/login'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password }),
@@ -45,7 +55,7 @@ export async function login(username: string, password: string): Promise<TokenRe
 }
 
 export async function register(username: string, password: string, nickname?: string): Promise<TokenResponse> {
-  const resp = await fetch('/auth/register', {
+  const resp = await fetch(withBase('/auth/register'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password, nickname: nickname || undefined }),
@@ -101,7 +111,7 @@ export async function confirmBindEmail(email: string, code: string): Promise<Use
 }
 
 export async function requestPasswordReset(username: string, email: string): Promise<string> {
-  const resp = await fetch('/auth/password/reset/request', {
+  const resp = await fetch(withBase('/auth/password/reset/request'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email }),
@@ -117,7 +127,7 @@ export async function confirmPasswordReset(
   code: string,
   newPassword: string,
 ): Promise<string> {
-  const resp = await fetch('/auth/password/reset/confirm', {
+  const resp = await fetch(withBase('/auth/password/reset/confirm'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, code, newPassword }),
@@ -136,7 +146,7 @@ function authHeaders(): Record<string, string> {
 }
 
 function authRequest(path: string, options: RequestInit = {}): Promise<Response> {
-  return fetch(path, {
+  return fetch(withBase(path), {
     ...options,
     headers: { ...authHeaders(), ...(options.headers as Record<string, string>) },
   }).then((resp) => {
@@ -175,7 +185,7 @@ export function openSseStream(
 
   void (async () => {
     try {
-      const resp = await fetch(url, { headers: authHeaders(), signal: controller.signal })
+      const resp = await fetch(withBase(url), { headers: authHeaders(), signal: controller.signal })
       if (!resp.ok || !resp.body) {
         if (resp.status === 401 && auth.enabled && !url.startsWith('/auth/')) {
           clearSession()

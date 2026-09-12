@@ -49,8 +49,9 @@ router.beforeEach(async (to) => {
 
 createApp(App).use(router).mount('#app')
 
-// PWA：仅生产构建注册 Service Worker（开发环境避免干扰 HMR）
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// PWA：仅生产构建注册 Service Worker（开发环境避免干扰 HMR；Tauri 原生壳内不适用）
+const isTauri = '__TAURI_INTERNALS__' in window || '__TAURI__' in window
+if (import.meta.env.PROD && !isTauri && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
       // 注册失败不影响功能
