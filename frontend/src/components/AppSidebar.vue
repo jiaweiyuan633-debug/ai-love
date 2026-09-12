@@ -229,6 +229,7 @@ function fmtTime(iso: string): string {
 <style scoped>
 .sidebar {
   width: 248px;
+  height: 100%; /* 撑满屏幕高度：对话列表再短，用户卡片也固定在左下角 */
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
