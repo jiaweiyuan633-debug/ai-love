@@ -76,6 +76,34 @@ RAG 检索增强版流式对话：先检索知识库 top4 片段再回答。参�
 ### DELETE /api/memory/{id} · DELETE /api/memory
 删除单条 / 清空全部记忆。开关在 `PATCH /auth/me` 的 `memoryEnabled`。
 
+## 1.7 会话搜索与导出（需登录）
+
+### GET /api/conversations/search?q=关键词
+全文检索当前用户的历史消息（ILIKE，新→旧，最多 30 条）：
+`[{"conversationId": "...", "conversationTitle": "...", "role": "user|assistant", "snippet": "…关键词附近片段…", "createdAt": "..."}]`
+
+### GET /api/conversations/{id}/export
+导出会话为 Markdown 文件下载（`Content-Disposition: attachment; filename*=UTF-8''…`）。
+
+## 1.8 情侣绑定（需登录）
+
+| 接口 | 说明 |
+|---|---|
+| GET /api/couple | 绑定状态：`{bound, pending, code, partnerNickname, anniversaryDate, daysTogether, daysToAnniversary}` |
+| POST /api/couple/code | 生成我的绑定码（幂等，返回同码） |
+| POST /api/couple/bind `{code}` | 用对方绑定码完成绑定（防自绑/防重复/并发冲突） |
+| PATCH /api/couple `{anniversaryDate: "YYYY-MM-DD"}` | 设置恋爱纪念日 |
+| DELETE /api/couple | 解除绑定（各自记忆保留，共享注入立即停止） |
+
+绑定后，双方对话的 system prompt 自动注入"情侣绑定信息块"：伴侣昵称、纪念日、在一起第 N 天、
+纪念日当天/7 天内提醒，以及伴侣最近 10 条长期记忆（共享记忆）。
+
+## 1.9 每日情话
+
+### GET /api/daily-quote?refresh=false
+返回 `{"date": "2026-09-12", "quote": "…"}`。每天一句，首次请求 qwen-turbo 生成并按日缓存，
+`refresh=true` 重新生成并覆盖当天缓存。体验模式（无数据库）下降级为每次实时生成。
+
 ## 2. YuManus 智能体
 
 ### GET /ai/yumanus/stream
@@ -125,6 +153,9 @@ multipart 上传文档（PDF/Word/PPT/MD/TXT，≤20MB），自动 Tika 解析 �
 3. `cd backend && mvn spring-boot:run`（8101，需要 `DASHSCOPE_API_KEY`；MCP 服务未启动时先 `MCP_CLIENT_ENABLED=false`）
 4. `cd frontend && npm run dev`（5173，Vite 代理 /ai、/knowledge、/api、/auth → 8101）
 5. 浏览器打开 http://localhost:5173 → 注册/登录 → 开始对话
+
+数据表：users / conversations / messages / user_memories / couples / daily_quotes / vector_store（首次启动自动创建）。
+PWA：生产构建后可通过浏览器"安装到桌面/主屏幕"（manifest + Service Worker，localhost 与 HTTPS 下可用）。
 
 > 环境变量：`JWT_SECRET`（生产必须覆盖，HS256 密钥 ≥32 字节）、`PERSISTENCE_ENABLED`（false=体验模式，跳过登录与持久化）。
 > 云端部署见 [DEPLOY.md](DEPLOY.md)；买了 RDS 后把 `PERSISTENCE_ENABLED=true` 并配好数据源即可开通全部功能。
