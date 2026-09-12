@@ -2,11 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import SettingsModal from './SettingsModal.vue'
 import { auth } from '../stores/auth'
-import { createMembershipOrder, fetchMembership, payMembershipOrder } from '../api'
+import {
+  confirmBindEmail,
+  createMembershipOrder,
+  deleteAccount,
+  fetchMembership,
+  payMembershipOrder,
+  requestBindEmail,
+} from '../api'
 
 vi.mock('../api', () => ({
   bindCouple: vi.fn().mockResolvedValue({ bound: false, pending: false, code: null, partnerNickname: null, anniversaryDate: null, daysTogether: null, daysToAnniversary: null }),
+  confirmBindEmail: vi.fn(),
   createMembershipOrder: vi.fn(),
+  deleteAccount: vi.fn(),
   deleteMemoryItem: vi.fn().mockResolvedValue(undefined),
   fetchAchievements: vi.fn().mockResolvedValue([]),
   fetchMembership: vi.fn(),
@@ -14,9 +23,10 @@ vi.mock('../api', () => ({
   generateCoupleCode: vi.fn().mockResolvedValue('CODE12'),
   getCoupleStatus: vi.fn().mockResolvedValue({ bound: false, pending: false, code: null, partnerNickname: null, anniversaryDate: null, daysTogether: null, daysToAnniversary: null }),
   listMemory: vi.fn().mockResolvedValue({ enabled: false, items: [] }),
-  patchMe: vi.fn().mockResolvedValue({ id: 1, username: 'u', nickname: 'n', memoryEnabled: true }),
+  patchMe: vi.fn().mockResolvedValue({ id: 1, username: 'u', nickname: 'n', memoryEnabled: true, email: null }),
   clearMemory: vi.fn().mockResolvedValue(undefined),
   payMembershipOrder: vi.fn(),
+  requestBindEmail: vi.fn(),
   setAnniversary: vi.fn().mockResolvedValue({ bound: false, pending: false, code: null, partnerNickname: null, anniversaryDate: null, daysTogether: null, daysToAnniversary: null }),
   unbindCouple: vi.fn().mockResolvedValue(undefined),
 }))
@@ -68,7 +78,7 @@ describe('SettingsModal', () => {
 
   it('会员 tab:免费版状态展示,模拟支付后变为 VIP', async () => {
     auth.enabled = true
-    auth.user = { id: 1, username: 'u', nickname: '小爱', memoryEnabled: true }
+    auth.user = { id: 1, username: 'u', nickname: '小爱', memoryEnabled: true, email: null }
     vi.mocked(fetchMembership).mockResolvedValue({ vip: false, plan: null, vipUntil: null, dailyUsed: 3, dailyLimit: 20 })
     const { fetchMembershipPlans } = await import('../api')
     vi.mocked(fetchMembershipPlans).mockResolvedValue([
@@ -89,5 +99,60 @@ describe('SettingsModal', () => {
     await vi.waitFor(() => expect(createMembershipOrder).toHaveBeenCalledWith('year'))
     await vi.waitFor(() => expect(w.text()).toContain('VIP 会员'))
     expect(w.text()).toContain('2027')
+  })
+
+  it('账号 tab 展示邮箱绑定入口', async () => {
+    auth.enabled = true
+    auth.user = { id: 1, username: 'u', nickname: '小爱', memoryEnabled: true, email: null }
+    const w = mountView()
+    await w.findAll('.tabs button').find((b) => b.text().includes('记忆与账号'))!.trigger('click')
+    expect(w.text()).toContain('常用邮箱')
+    expect(w.text()).toContain('未绑定')
+    expect(w.find('input[type="email"]').exists()).toBe(true)
+  })
+
+  it('邮箱绑定:发送验证码并绑定成功更新状态', async () => {
+    auth.enabled = true
+    auth.user = { id: 1, username: 'alice', nickname: '小爱', memoryEnabled: true, email: null }
+    vi.mocked(requestBindEmail).mockResolvedValue('验证码已发送')
+    vi.mocked(confirmBindEmail).mockResolvedValue({ id: 1, username: 'alice', nickname: '小爱', memoryEnabled: true, email: 'a@b.dev' })
+    const w = mountView()
+    await w.findAll('.tabs button').find((b) => b.text().includes('记忆与账号'))!.trigger('click')
+    await w.find('input[type="email"]').setValue('a@b.dev')
+    const codeBtn = w.findAll('button').find((b) => b.text().includes('获取验证码'))!
+    await codeBtn.trigger('click')
+    await vi.waitFor(() => expect(requestBindEmail).toHaveBeenCalledWith('a@b.dev'))
+    await w.find('input[maxlength="6"]').setValue('654321')
+    const bindBtn = w.findAll('button').find((b) => b.text().includes('绑定'))!
+    await bindBtn.trigger('click')
+    await vi.waitFor(() => expect(confirmBindEmail).toHaveBeenCalledWith('a@b.dev', '654321'))
+    expect(auth.user!.email).toBe('a@b.dev')
+  })
+
+  it('注销账号:用户名确认后调用删除并清空会话', async () => {
+    auth.enabled = true
+    auth.user = { id: 1, username: 'alice', nickname: '小爱', memoryEnabled: true, email: null }
+    localStorage.setItem('ailove:token', 'tok')
+    auth.token = 'tok'
+    vi.mocked(deleteAccount).mockResolvedValue(undefined)
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('alice')
+    const w = mountView()
+    await w.findAll('.tabs button').find((b) => b.text().includes('记忆与账号'))!.trigger('click')
+    await w.find('button.delete-account').trigger('click')
+    await vi.waitFor(() => expect(deleteAccount).toHaveBeenCalled())
+    expect(auth.token).toBe('')
+    promptSpy.mockRestore()
+  })
+
+  it('注销账号:确认用户名不匹配时不删除', async () => {
+    auth.enabled = true
+    auth.user = { id: 1, username: 'alice', nickname: '小爱', memoryEnabled: true, email: null }
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('wrong-name')
+    const w = mountView()
+    await w.findAll('.tabs button').find((b) => b.text().includes('记忆与账号'))!.trigger('click')
+    await w.find('button.delete-account').trigger('click')
+    expect(deleteAccount).not.toHaveBeenCalled()
+    expect(auth.token).toBe('')
+    promptSpy.mockRestore()
   })
 })

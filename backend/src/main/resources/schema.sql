@@ -9,6 +9,19 @@ CREATE TABLE IF NOT EXISTS users (
     memory_enabled BOOLEAN     NOT NULL DEFAULT TRUE,
     created_at    TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+-- 邮箱：用于验证码找回密码（可空；绑定后唯一）
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(120);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
+
+-- 邮箱验证码（绑定邮箱 / 找回密码共用，按 email+purpose 一行，重发即覆盖）
+CREATE TABLE IF NOT EXISTS auth_codes (
+    email      VARCHAR(120) NOT NULL,
+    purpose    VARCHAR(16)  NOT NULL, -- bind / reset
+    code_hash  VARCHAR(64)  NOT NULL, -- SHA-256（不存明文）
+    expires_at TIMESTAMPTZ  NOT NULL,
+    attempts   INT          NOT NULL DEFAULT 0,
+    PRIMARY KEY (email, purpose)
+);
 
 CREATE TABLE IF NOT EXISTS conversations (
     id          VARCHAR(48) PRIMARY KEY,

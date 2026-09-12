@@ -5,11 +5,14 @@ export interface User {
   username: string
   nickname: string
   memoryEnabled: boolean
+  email: string | null
 }
 
 interface AuthState {
   /** 是否启用登录/持久化；null = 尚未探测（/auth/status） */
   enabled: boolean | null
+  /** 后端是否配置了邮件服务（决定"忘记密码"入口是否展示） */
+  passwordResetEnabled: boolean
   token: string
   user: User | null
 }
@@ -18,6 +21,7 @@ const TOKEN_KEY = 'ailove:token'
 
 export const auth = reactive<AuthState>({
   enabled: null,
+  passwordResetEnabled: false,
   token: localStorage.getItem(TOKEN_KEY) || '',
   user: null,
 })

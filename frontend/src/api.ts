@@ -5,6 +5,7 @@ export interface User {
   username: string
   nickname: string
   memoryEnabled: boolean
+  email: string | null
 }
 
 export interface TokenResponse {
@@ -18,6 +19,8 @@ export async function fetchAuthStatus(): Promise<boolean> {
   const resp = await fetch('/auth/status')
   if (!resp.ok) return false
   const data = await resp.json()
+  // 忘记密码入口依赖后端邮件服务配置
+  auth.passwordResetEnabled = !!data.passwordResetEnabled
   return !!data.enabled
 }
 
@@ -65,6 +68,63 @@ export async function patchMe(patch: { nickname?: string; memoryEnabled?: boolea
   })
   if (!resp.ok) throw await errorOf(resp, '保存失败')
   return resp.json()
+}
+
+// ================= 注销账号 / 邮箱绑定 / 找回密码 =================
+
+/** 注销当前账号：服务端删除全部用户数据，前端随后需 clearSession */
+export async function deleteAccount(): Promise<void> {
+  const resp = await authRequest('/auth/me', { method: 'DELETE' })
+  if (!resp.ok) throw await errorOf(resp, '注销失败')
+}
+
+export async function requestBindEmail(email: string): Promise<string> {
+  const resp = await authRequest('/auth/me/email/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  const data = await resp.json().catch(() => null)
+  if (!resp.ok) throw new Error(data?.error || '验证码发送失败')
+  return data.message
+}
+
+export async function confirmBindEmail(email: string, code: string): Promise<User> {
+  const resp = await authRequest('/auth/me/email/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  })
+  const data = await resp.json().catch(() => null)
+  if (!resp.ok) throw new Error(data?.error || '绑定失败')
+  return data
+}
+
+export async function requestPasswordReset(username: string, email: string): Promise<string> {
+  const resp = await fetch('/auth/password/reset/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, email }),
+  })
+  const data = await resp.json().catch(() => null)
+  if (!resp.ok) throw new Error(data?.error || '验证码发送失败')
+  return data.message
+}
+
+export async function confirmPasswordReset(
+  username: string,
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<string> {
+  const resp = await fetch('/auth/password/reset/confirm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, email, code, newPassword }),
+  })
+  const data = await resp.json().catch(() => null)
+  if (!resp.ok) throw new Error(data?.error || '重置失败')
+  return data.message
 }
 
 // ================= 通用请求（自动附带 Authorization；401 自动登出） =================

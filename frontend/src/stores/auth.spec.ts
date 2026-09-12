@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { auth, setSession, clearSession, onUnauthorized } from './auth'
 
-const user = { id: 1, username: 'tester', nickname: '测试', memoryEnabled: true }
+const user = { id: 1, username: 'tester', nickname: '测试', memoryEnabled: true, email: null }
 
 /** jsdom 的 location.assign 只读,但 window.location 属性可整体替换 */
 function interceptLocationAssign() {

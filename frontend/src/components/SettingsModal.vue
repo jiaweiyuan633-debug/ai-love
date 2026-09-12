@@ -6,7 +6,9 @@ import { ui } from '../stores/ui'
 import { auth, clearSession } from '../stores/auth'
 import {
   bindCouple,
+  confirmBindEmail,
   createMembershipOrder,
+  deleteAccount,
   deleteMemoryItem,
   fetchAchievements,
   fetchMembership,
@@ -17,6 +19,7 @@ import {
   patchMe,
   clearMemory,
   payMembershipOrder,
+  requestBindEmail,
   setAnniversary,
   unbindCouple,
   type Achievement,
@@ -262,6 +265,66 @@ function logout() {
   clearSession()
   ui.settingsOpen = false
   router.replace('/login')
+}
+
+// ---------- 邮箱绑定（找回密码通道） ----------
+const emailInput = ref('')
+const emailCode = ref('')
+const emailMsg = ref('')
+const emailCountdown = ref(0)
+const emailBound = ref(false)
+let emailTimer: number | undefined
+
+async function sendBindCode() {
+  if (emailCountdown.value > 0) return
+  emailMsg.value = ''
+  if (!emailInput.value.trim()) {
+    emailMsg.value = '请先填写邮箱地址'
+    return
+  }
+  try {
+    emailMsg.value = await requestBindEmail(emailInput.value.trim())
+    emailCountdown.value = 60
+    emailTimer = window.setInterval(() => {
+      emailCountdown.value--
+      if (emailCountdown.value <= 0) window.clearInterval(emailTimer)
+    }, 1000)
+  } catch (err) {
+    emailMsg.value = err instanceof Error ? err.message : '验证码发送失败'
+  }
+}
+
+async function bindEmail() {
+  emailMsg.value = ''
+  if (!emailInput.value.trim() || !emailCode.value.trim()) {
+    emailMsg.value = '请填写邮箱与验证码'
+    return
+  }
+  try {
+    auth.user = await confirmBindEmail(emailInput.value.trim(), emailCode.value.trim())
+    emailBound.value = true
+    emailMsg.value = '绑定成功，忘记密码时可用该邮箱自助找回'
+    setTimeout(() => (emailBound.value = false), 2000)
+  } catch (err) {
+    emailMsg.value = err instanceof Error ? err.message : '绑定失败'
+  }
+}
+
+// ---------- 注销账号 ----------
+async function deleteMyAccount() {
+  if (!auth.user) return
+  const typed = window.prompt(
+    `即将永久删除你的全部数据（会话、长期记忆、心情、朋友圈、会员），且无法恢复！\n请输入用户名「${auth.user.username}」确认:`,
+  )
+  if (typed !== auth.user.username) return
+  try {
+    await deleteAccount()
+    clearSession()
+    ui.settingsOpen = false
+    router.replace('/')
+  } catch (err) {
+    window.alert(err instanceof Error ? err.message : '注销失败，请稍后再试')
+  }
 }
 
 const isGuest = computed(() => !auth.user)
@@ -511,7 +574,24 @@ const isGuest = computed(() => !auth.user)
                 <button class="mini-btn" @click="saveNickname">{{ nicknameSaved ? '✅ 已保存' : '保存' }}</button>
               </div>
 
+              <div class="row-title">
+                常用邮箱（找回密码用）
+                <span class="email-state">{{ auth.user?.email ? '已绑定 ' + auth.user?.email : '未绑定' }}</span>
+              </div>
+              <div class="nickname-row">
+                <input v-model="emailInput" class="select" type="email" placeholder="you@example.com" />
+                <button class="mini-btn" :disabled="emailCountdown > 0" @click="sendBindCode">
+                  {{ emailCountdown > 0 ? emailCountdown + 's' : '获取验证码' }}
+                </button>
+              </div>
+              <div class="nickname-row">
+                <input v-model="emailCode" class="select" inputmode="numeric" maxlength="6" placeholder="6 位验证码" />
+                <button class="mini-btn" @click="bindEmail">{{ emailBound ? '✅ 已绑定' : '绑定' }}</button>
+              </div>
+              <p v-if="emailMsg" class="hint">{{ emailMsg }}</p>
+
               <button class="danger-btn" @click="logout">⏻ 退出登录</button>
+              <button class="danger-btn delete-account" @click="deleteMyAccount">🗑️ 注销账号（永久删除全部数据）</button>
             </template>
             <div v-else class="hint">体验模式下暂无账号与记忆功能。</div>
             <div class="legal-links">
@@ -1074,6 +1154,19 @@ header h2 {
   color: var(--danger-text);
   font-size: 13px;
   margin: 8px 0 0;
+}
+.email-state {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-4);
+  margin-left: 6px;
+}
+.delete-account {
+  margin-top: 8px;
+  opacity: 0.85;
+}
+.delete-account:hover {
+  opacity: 1;
 }
 @media (max-width: 500px) {
   .plan-grid {

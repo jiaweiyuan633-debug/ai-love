@@ -37,6 +37,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+        <!-- 邮件：邮箱绑定与找回密码的验证码发送（未配置 spring.mail.host 时自动降级为不可用） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <!-- Spring AI OpenAI 模型客户端：通过通义千问 OpenAI 兼容模式接入 DashScope -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

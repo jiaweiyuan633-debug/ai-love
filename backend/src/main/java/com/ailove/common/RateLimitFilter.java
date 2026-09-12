@@ -45,7 +45,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         Long userId = AuthContext.userId();
         Integer limit = null;
         String key = null;
-        if (path.equals("/auth/login") || path.equals("/auth/register")) {
+        if (path.equals("/auth/login") || path.equals("/auth/register")
+                || path.startsWith("/auth/password/reset")) {
+            // 登录/注册/找回密码同桶：按 IP 防爆破与验证码接口滥用
             limit = authPerMinute;
             key = "auth:" + clientIp(request);
         } else if (AiEndpoints.isAiConsumer(request)) {

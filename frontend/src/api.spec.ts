@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { fetchAuthStatus, login, register, fetchMe, openSseStream } from './api'
 import { auth, setSession, clearSession } from './stores/auth'
 
-const user = { id: 1, username: 'u', nickname: 'n', memoryEnabled: true }
+const user = { id: 1, username: 'u', nickname: 'n', memoryEnabled: true, email: null }
 
 /** 构造一个可控的 SSE/JSON 假 Response（无需真实 ReadableStream） */
 function fakeResponse(
