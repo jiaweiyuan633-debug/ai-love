@@ -65,7 +65,7 @@ function switchMode() {
             v-model="password"
             type="password"
             :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-            placeholder="至少 6 位"
+            placeholder="至少 8 位，含字母和数字"
           />
         </label>
 
@@ -79,6 +79,13 @@ function switchMode() {
       <p class="tip">
         {{ mode === 'login' ? '还没有账号？' : '已有账号？' }}
         <a @click="switchMode">{{ mode === 'login' ? '立即注册' : '去登录' }}</a>
+      </p>
+
+      <p class="legal">
+        {{ mode === 'register' ? '注册即代表同意' : '继续使用即代表同意' }}
+        <router-link to="/agreement" target="_blank">《用户服务协议》</router-link>
+        和
+        <router-link to="/privacy" target="_blank">《隐私政策》</router-link>
       </p>
 
       <p class="ai-notice">内容由 AI 生成 · 仅供陪伴与参考 · 不能替代真实人际关系与专业帮助</p>
@@ -200,6 +207,20 @@ function switchMode() {
 .tip a {
   color: var(--danger-text);
   cursor: pointer;
+}
+.legal {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-5);
+  margin: 12px 0 0;
+  line-height: 1.6;
+}
+.legal a {
+  color: var(--text-4);
+  text-decoration: none;
+}
+.legal a:hover {
+  color: var(--a1);
 }
 .ai-notice {
   text-align: center;

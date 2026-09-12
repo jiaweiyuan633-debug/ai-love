@@ -52,6 +52,20 @@ spring:
 server:
   port: 8101
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      # 不向前端暴露组件细节（数据库地址等），只返回 UP/DOWN
+      show-details: never
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+
 app:
   # 持久化/用户系统总开关（需要数据库）。云端无数据库时置 false：关闭登录与会话持久化，进入体验模式
   persistence:

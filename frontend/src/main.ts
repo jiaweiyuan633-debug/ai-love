@@ -7,6 +7,7 @@ import KnowledgeView from './views/KnowledgeView.vue'
 import MomentsView from './views/MomentsView.vue'
 import YuManusView from './views/YuManusView.vue'
 import LoginView from './views/LoginView.vue'
+import AgreementView from './views/AgreementView.vue'
 import { auth } from './stores/auth'
 import { fetchAuthStatus, fetchMe } from './api'
 
@@ -18,11 +19,15 @@ const router = createRouter({
     { path: '/knowledge', name: 'knowledge', component: KnowledgeView },
     { path: '/yumanus', name: 'yumanus', component: YuManusView },
     { path: '/login', name: 'login', component: LoginView },
+    // 法律文档页：未登录也要能从登录页访问
+    { path: '/agreement', name: 'agreement', component: AgreementView, meta: { public: true } },
+    { path: '/privacy', name: 'privacy', component: AgreementView, meta: { public: true } },
   ],
 })
 
 // 登录守卫：先探测后端是否启用用户系统（体验模式直接放行），再校验登录态
 router.beforeEach(async (to) => {
+  if (to.meta.public) return true
   if (auth.enabled === null) {
     auth.enabled = await fetchAuthStatus().catch(() => false)
     if (auth.enabled && auth.token) {

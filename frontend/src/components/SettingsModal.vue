@@ -469,6 +469,11 @@ const isGuest = computed(() => !auth.user)
               <button class="danger-btn" @click="logout">⏻ 退出登录</button>
             </template>
             <div v-else class="hint">体验模式下暂无账号与记忆功能。</div>
+            <div class="legal-links">
+              <a href="/agreement" target="_blank">用户服务协议</a>
+              <span>·</span>
+              <a href="/privacy" target="_blank">隐私政策</a>
+            </div>
           </section>
         </div>
       </div>
@@ -774,6 +779,48 @@ header h2 {
 }
 .danger-btn:hover {
   background: var(--danger-bg);
+}
+.legal-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--text-4);
+}
+.legal-links a {
+  color: var(--text-3);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border-strong);
+  cursor: pointer;
+}
+.legal-links a:hover {
+  color: var(--a1);
+}
+
+/* 手机端：弹窗改为贴底面板，标签行可横向滚动 */
+@media (max-width: 500px) {
+  .overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+  .modal {
+    width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .ach-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 .couple-card {
   display: flex;

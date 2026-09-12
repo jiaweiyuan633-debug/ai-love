@@ -27,6 +27,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!-- 运维健康检查：/actuator/health 供 FC 探活与人工巡检 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
         <!-- Spring AI OpenAI 模型客户端：通过通义千问 OpenAI 兼容模式接入 DashScope -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

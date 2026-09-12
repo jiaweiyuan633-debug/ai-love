@@ -5,7 +5,7 @@
  * - 页面导航 → 网络优先，断网回退缓存的 index.html（SPA 单页）
  * - /ai、/api、/auth、/knowledge 接口（含 SSE 流）→ 永不缓存
  */
-const CACHE = 'ailove-v1'
+const CACHE = 'ailove-__SW_VERSION__' // 构建时由 vite 插件替换为时间戳，发版后旧缓存自动失效
 
 self.addEventListener('install', () => {
   self.skipWaiting()

@@ -53,8 +53,11 @@ public class AuthController {
         if (!username.matches("[A-Za-z0-9_\\u4e00-\\u9fa5]{3,32}")) {
             return badRequest("用户名需为 3-32 位字母、数字、下划线或中文");
         }
-        if (password.length() < 6 || password.length() > 64) {
-            return badRequest("密码长度需在 6-64 位之间");
+        if (password.length() < 8 || password.length() > 64) {
+            return badRequest("密码长度需在 8-64 位之间");
+        }
+        if (!password.matches("^(?=.*[A-Za-z])(?=.*\\d).+$")) {
+            return badRequest("密码需同时包含字母和数字");
         }
         Long exists = jdbc.sql("SELECT id FROM users WHERE username = ?")
                 .param(username)

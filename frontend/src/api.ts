@@ -76,7 +76,17 @@ function authHeaders(): Record<string, string> {
 }
 
 function authRequest(path: string, options: RequestInit = {}): Promise<Response> {
-  return fetch(path, { ...options, headers: { ...authHeaders(), ...(options.headers as Record<string, string>) } })
+  return fetch(path, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers as Record<string, string>) },
+  }).then((resp) => {
+    // token 过期/无效：统一登出并回登录页（与 SSE 流内的处理保持一致）
+    if (resp.status === 401 && auth.enabled) {
+      clearSession()
+      window.location.assign('/login')
+    }
+    return resp
+  })
 }
 
 // ================= SSE 流式对话（fetch 版：可携带 token、可真正中断） =================
@@ -112,7 +122,15 @@ export function openSseStream(
           window.location.assign('/login')
           return
         }
-        finish(() => onError?.(`连接失败 (${resp.status})`))
+        // 读取后端 JSON 错误体（限流 429 / AI 上游 502 / 内容审核 422 等友好文案）
+        let message = `连接失败 (${resp.status})`
+        try {
+          const data = await resp.json()
+          if (data?.error) message = data.error
+        } catch {
+          // 非 JSON 错误体，保留默认文案
+        }
+        finish(() => onError?.(message))
         return
       }
       const reader = resp.body.getReader()

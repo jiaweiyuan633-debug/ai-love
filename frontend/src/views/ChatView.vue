@@ -301,7 +301,7 @@ function send(text?: string) {
   void streamSend(text ?? input.value, false)
 }
 
-async function streamSend(raw: string, regenerate: boolean) {
+async function streamSend(raw: string, regenerate: boolean, isRetry = false) {
   const message = raw.trim()
   if (!message || streaming.value) return
   error.value = ''
@@ -370,7 +370,20 @@ async function streamSend(raw: string, regenerate: boolean) {
     (msg) => {
       streaming.value = false
       closeStream = null
-      error.value = msg || '连接失败，请确认后端 8101 已启动'
+      const text = msg || '连接失败，请确认后端 8101 已启动'
+      const reply = messages.value[replyIndex]
+      const gotContent = !!reply?.content
+      // 断流自动重试一次：仅限一个字都没收到、仍是当前会话、且是原始连接故障
+      // （限流/AI 上游/内容拦截等后端友好文案不重试）；regenerate=true 让后端先删除失败轮次，历史不会重复
+      const retryable =
+        !isRetry && !gotContent && convIdForReply === conversations.activeId
+        && /^(连接|Failed to fetch|fetch failed|network)/i.test(text)
+      if (retryable) {
+        if (reply) messages.value.splice(replyIndex, 1)
+        void streamSend(message, true, true)
+        return
+      }
+      error.value = text
     },
   )
 }
@@ -1229,7 +1242,9 @@ function resetSession() {
 .input-bar {
   display: flex;
   gap: 10px;
+  /* env(safe-area-inset-bottom)：全面屏手机 PWA 底部小黑条不遮挡输入框 */
   padding: 12px 16px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
   align-items: flex-end;
 }
