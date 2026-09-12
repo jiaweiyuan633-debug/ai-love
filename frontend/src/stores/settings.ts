@@ -7,6 +7,8 @@ export interface AppSettings {
   // 语音朗读
   voiceEnabled: boolean
   autoRead: boolean
+  /** 朗读引擎：'' = 浏览器内置（免费）；其余为后端高拟真人设 id（yujie/xiaomei/ceo/nanda/zhonger/jiejie） */
+  voicePersona: string
   voiceURI: string
   voiceRate: number
   // 悬浮窗
@@ -22,6 +24,7 @@ const defaults: AppSettings = {
   accent: 'rose',
   voiceEnabled: false,
   autoRead: true,
+  voicePersona: 'jiejie',
   voiceURI: '',
   voiceRate: 1,
   floatBall: true,

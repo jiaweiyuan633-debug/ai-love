@@ -17,7 +17,22 @@ import {
   type CoupleStatus,
   type MemoryItem,
 } from '../api'
-import { zhVoices } from '../composables/useSpeech'
+import { zhVoices, speakFull } from '../composables/useSpeech'
+
+/** 人设音色（与后端 TtsService 保持一致） */
+const personas = [
+  { id: 'yujie', emoji: '🌙', label: '温柔御姐', description: '低柔从容 · 成熟魅力' },
+  { id: 'xiaomei', emoji: '🍬', label: '邻家小妹', description: '甜美俏皮 · 元气满满' },
+  { id: 'ceo', emoji: '🧊', label: '高冷总裁', description: '磁性低沉 · 冷静克制' },
+  { id: 'nanda', emoji: '🎓', label: '清纯男大', description: '干净清爽 · 真诚少年' },
+  { id: 'zhonger', emoji: '⚡', label: '中二少年', description: '热血中二 · 戏剧张力' },
+  { id: 'jiejie', emoji: '☕', label: '知心姐姐', description: '温暖亲切 · 治愈抚慰' },
+]
+
+function preview(personaId: string) {
+  settings.voicePersona = personaId
+  speakFull('你好呀，我是你的专属恋爱顾问，很高兴遇见你。')
+}
 
 const router = useRouter()
 const emit = defineEmits<{ close: [] }>()
@@ -266,13 +281,42 @@ const isGuest = computed(() => !auth.user)
               </span>
             </label>
 
-            <div class="row-title">音色</div>
-            <select v-model="settings.voiceURI" class="select">
-              <option value="">默认（跟随浏览器）</option>
-              <option v-for="v in voices" :key="v.voiceURI" :value="v.voiceURI">
-                {{ v.name }}（{{ v.lang }}）
-              </option>
-            </select>
+            <div class="row-title">朗读音色</div>
+            <p class="hint">前 6 种为云端高拟真人声（按合成字数计费，费用极低）；浏览器默认免费但偏机械。</p>
+            <div class="persona-grid">
+              <div
+                v-for="p in personas"
+                :key="p.id"
+                class="persona-card"
+                :class="{ active: settings.voicePersona === p.id }"
+                @click="settings.voicePersona = p.id"
+              >
+                <span class="p-emoji">{{ p.emoji }}</span>
+                <span class="p-label">{{ p.label }}</span>
+                <span class="p-desc">{{ p.description }}</span>
+                <button class="p-play" title="试听" @click.stop="preview(p.id)">▶</button>
+              </div>
+              <div
+                class="persona-card"
+                :class="{ active: settings.voicePersona === '' }"
+                @click="settings.voicePersona = ''"
+              >
+                <span class="p-emoji">🖥️</span>
+                <span class="p-label">浏览器默认</span>
+                <span class="p-desc">免费 · 音质一般</span>
+                <button class="p-play" title="试听" @click.stop="preview('')">▶</button>
+              </div>
+            </div>
+
+            <template v-if="settings.voicePersona === ''">
+              <div class="row-title">浏览器音色</div>
+              <select v-model="settings.voiceURI" class="select">
+                <option value="">默认（跟随浏览器）</option>
+                <option v-for="v in voices" :key="v.voiceURI" :value="v.voiceURI">
+                  {{ v.name }}（{{ v.lang }}）
+                </option>
+              </select>
+            </template>
 
             <div class="row-title">语速（{{ settings.voiceRate.toFixed(2) }}x）</div>
             <input v-model.number="settings.voiceRate" type="range" min="0.5" max="2" step="0.25" class="range" />
@@ -687,5 +731,59 @@ header h2 {
   color: var(--danger-text);
   font-size: 12px;
   margin: 8px 0 0;
+}
+.persona-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.persona-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.persona-card:hover {
+  border-color: var(--a2);
+}
+.persona-card.active {
+  border-color: var(--a1);
+  background: linear-gradient(135deg, rgba(255, 107, 157, 0.1), rgba(167, 107, 255, 0.1));
+}
+.p-emoji {
+  font-size: 18px;
+}
+.p-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.p-desc {
+  font-size: 11px;
+  color: var(--text-5);
+}
+.p-play {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-3);
+  font-size: 10px;
+  cursor: pointer;
+}
+.p-play:hover {
+  background: var(--accent-grad);
+  color: #fff;
+  border-color: transparent;
 }
 </style>

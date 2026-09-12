@@ -104,6 +104,24 @@ RAG 检索增强版流式对话：先检索知识库 top4 片段再回答。参�
 返回 `{"date": "2026-09-12", "quote": "…"}`。每天一句，首次请求 qwen-turbo 生成并按日缓存，
 `refresh=true` 重新生成并覆盖当天缓存。体验模式（无数据库）下降级为每次实时生成。
 
+## 1.10 人设语音合成（TTS）
+
+### GET /api/tts/voices
+返回可用人设音色列表：
+`[{"id":"yujie","label":"温柔御姐","emoji":"🌙","description":"低柔从容、成熟魅力"}, …]`
+
+6 种人设（后端 CosyVoice 音色映射）：温柔御姐(yujie/loongbella)、邻家小妹(xiaomei/longwan)、
+高冷总裁(ceo/longcheng)、清纯男大(nanda/longshu)、中二少年(zhonger/longjielidou)、知心姐姐(jiejie/longxiaoxia)。
+
+### POST /api/tts
+```json
+{"text": "别怕，有我在呢。", "persona": "yujie", "rate": 1.0}
+```
+返回 `audio/mpeg` 二进制（单次 ≤300 字，前端按句合成）。rate 为用户语速（0.5-2.0，与
+人设基准语速相乘后夹取）。结果按 (人设+语速+文本) 内存 LRU 缓存（200 条），重复朗读零成本零延迟。
+调用链：DashScope CosyVoice 非实时接口 → 返回 24h 音频 URL → 后端下载转投（前端不直连，
+避免 HTTPS 混合内容问题）。体验模式同样可用。
+
 ## 2. YuManus 智能体
 
 ### GET /ai/yumanus/stream
