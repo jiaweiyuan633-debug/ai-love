@@ -65,10 +65,10 @@ function send(text?: string) {
         error.value = '没有收到回复，请确认后端已启动并配置了 DASHSCOPE_API_KEY'
       }
     },
-    () => {
+    (msg) => {
       streaming.value = false
       closeStream = null
-      error.value = '连接失败，请确认后端 8101 已启动'
+      error.value = msg || '连接失败，请确认后端 8101 已启动'
     },
   )
 }

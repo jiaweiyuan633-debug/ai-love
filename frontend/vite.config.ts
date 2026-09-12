@@ -9,6 +9,8 @@ export default defineConfig({
     proxy: {
       '/ai': 'http://localhost:8101',
       '/knowledge': 'http://localhost:8101',
+      '/api': 'http://localhost:8101',
+      '/auth': 'http://localhost:8101',
     },
   },
 })

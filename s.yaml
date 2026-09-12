@@ -44,10 +44,11 @@ resources:
         port: 9000
       environmentVariables:
         DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
+        PERSISTENCE_ENABLED: "false" # 云端暂无数据库：关闭登录/持久化（体验模式）。买了 RDS 后改 true 并配置数据源/JWT 变量
         KNOWLEDGE_ENABLED: "false" # 买了 RDS 后改 true 并配置数据源变量
         INLINE_LOVE_TOOLS: "true" # 云端内联图片搜索/花语工具（替代有状态的 MCP 远程调用）
         MCP_CLIENT_ENABLED: "false"
-        SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
+        SPRING_AUTOCONFIGURE_EXCLUDE: "org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.sql.init.SqlInitializationAutoConfiguration,org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
       triggers:
         - triggerName: http-trigger
           triggerType: http

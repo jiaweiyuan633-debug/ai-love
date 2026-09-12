@@ -1,6 +1,10 @@
 spring:
   application:
     name: ai-love-backend
+  # 启动时执行 schema.sql（幂等建表：用户/会话/消息/长期记忆）。云端无数据库部署会跳过
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:always}
   # 云端无数据库部署时，通过环境变量排除 JDBC/pgvector 自动配置：
   # SPRING_AUTOCONFIGURE_EXCLUDE=org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
   autoconfigure:
@@ -48,9 +52,16 @@ server:
   port: 8101
 
 app:
+  # 持久化/用户系统总开关（需要数据库）。云端无数据库时置 false：关闭登录与会话持久化，进入体验模式
+  persistence:
+    enabled: ${PERSISTENCE_ENABLED:true}
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）
   knowledge:
     enabled: ${KNOWLEDGE_ENABLED:true}
   # 云端内联恋爱工具（与 MCP 远程工具二选一：云端 true + MCP 关闭；本地默认走 MCP）
   inline-love-tools:
     enabled: ${INLINE_LOVE_TOOLS:false}
+  jwt:
+    # 生产环境务必通过环境变量覆盖（HS256 密钥，至少 32 字节）
+    secret: ${JWT_SECRET:ai-love-dev-secret-change-me-in-production-0123456789}
+    expire-hours: ${JWT_EXPIRE_HOURS:168}

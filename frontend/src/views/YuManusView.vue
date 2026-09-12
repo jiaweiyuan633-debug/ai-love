@@ -42,9 +42,9 @@ function run(text?: string) {
       }
       closeStream = null
     },
-    () => {
+    (msg) => {
       running.value = false
-      error.value = '连接中断，请稍后重试'
+      error.value = msg || '连接中断，请稍后重试'
       closeStream = null
     },
   )
