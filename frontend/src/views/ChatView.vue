@@ -4,6 +4,7 @@ import { listMessages, openSseStream, type StoredMessage } from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
 import { settings } from '../stores/settings'
 import { feedSpeech, finishSpeech, speakFull, speaking, stopSpeech } from '../composables/useSpeech'
+import { useVoiceInput, voiceInputSupported } from '../composables/useVoiceInput'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -177,6 +178,21 @@ function toggleVoice() {
   if (!settings.voiceEnabled) stopSpeech()
 }
 
+// 语音输入：识别结果追加到输入框（可编辑后再发送）
+const { listening: micListening, interim: micInterim, toggle: toggleMic } = useVoiceInput({
+  onFinal: (text) => {
+    input.value = input.value ? `${input.value} ${text}` : text
+  },
+  onError: (msg) => {
+    error.value = msg
+  },
+})
+
+const inputPlaceholder = computed(() => {
+  if (micInterim.value) return `🎤 ${micInterim.value}`
+  return ragEnabled.value ? '结合恋爱知识库回答，说说你的困惑…' : '说出你的困惑，恋爱大师为你解答…'
+})
+
 /** 重新生成：丢弃最后一条回复，服务端会先删除库中最后一轮问答再重新作答 */
 function regenerate() {
   if (streaming.value) return
@@ -266,10 +282,17 @@ function resetSession() {
       <textarea
         v-model="input"
         rows="1"
-        :placeholder="ragEnabled ? '结合恋爱知识库回答，说说你的困惑…' : '说出你的困惑，恋爱大师为你解答…'"
+        :placeholder="inputPlaceholder"
         @keydown.enter.exact.prevent="send()"
         @input="autoGrow"
       ></textarea>
+      <button
+        v-if="voiceInputSupported"
+        class="mic-btn"
+        :class="{ listening: micListening }"
+        :title="micListening ? '停止语音输入' : '语音输入'"
+        @click="toggleMic"
+      >🎙️</button>
       <button v-if="streaming" class="stop-btn" @click="stop">停止</button>
       <button v-else class="send-btn" :disabled="!input.trim()" @click="send()">发送</button>
     </div>
@@ -550,6 +573,25 @@ function resetSession() {
 }
 .send-btn {
   background: var(--accent-grad);
+}
+.mic-btn {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.mic-btn:hover {
+  border-color: var(--a1);
+}
+.mic-btn.listening {
+  background: var(--accent-grad);
+  border-color: transparent;
+  animation: pulse 1.2s infinite;
 }
 .send-btn:disabled {
   opacity: 0.4;
