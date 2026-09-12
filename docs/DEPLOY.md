@@ -70,3 +70,15 @@ v2 起，登录/会话持久化/长期记忆由 `PERSISTENCE_ENABLED` 控制。�
 4. 前端无需改动：检测到 `/auth/status` 返回 `{"enabled":true}` 即自动显示登录页。
 
 未购买 RDS 期间云端保持 `PERSISTENCE_ENABLED=false`（体验模式）：前端自动跳过登录，对话走内存，其余功能（语音/悬浮窗/主题）不受影响。
+
+## 七、Redis 分布式限流（可选，多实例部署时启用）
+
+限流计数后端由 `RATE_LIMIT_BACKEND` 控制：`memory`（默认，进程内滑动窗口，零依赖）或 `redis`（固定窗口脚本 INCR+PEXPIRE，多实例共享精确计数）。买了 Redis 实例后启用：
+
+1. `s.yaml` backend 环境变量新增：
+   - `RATE_LIMIT_BACKEND: "redis"`
+   - `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` / `SPRING_DATA_REDIS_PASSWORD`（按实例信息填）
+2. 同步把 `management.health.redis.enabled` 改回 `true`（当前为避免无实例误报 DOWN 而关闭），重新构建镜像 → `s deploy backend`。
+3. 行为说明：Redis 不可用时**自动放行**（fail-open，只打 WARN 日志）——限流是防刷手段而非安全边界，可用性优先；单实例部署维持 memory 即可。
+
+对应代码：`common/RateLimitStore`（接口）/ `InMemoryRateLimitStore` / `RedisRateLimitStore`；真实 Redis 交互测试 `RedisRateLimitStoreIT` 本地跑 `docker run --rm -p 6379:6379 redis` 后生效，无 Redis 自动跳过。

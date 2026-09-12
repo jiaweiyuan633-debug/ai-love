@@ -32,6 +32,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Redis：RATE_LIMIT_BACKEND=redis 时提供多实例共享的限流计数（默认 memory 不连接） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
         <!-- Spring AI OpenAI 模型客户端：通过通义千问 OpenAI 兼容模式接入 DashScope -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

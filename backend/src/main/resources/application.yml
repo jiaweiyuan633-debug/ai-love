@@ -52,6 +52,14 @@ spring:
 server:
   port: 8101
 
+# Redis 连接（限流后端切换 RATE_LIMIT_BACKEND=redis 时启用；默认 memory 不建立连接）
+# 生产/RDS 示例：SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT / SPRING_DATA_REDIS_PASSWORD
+# spring:
+#   data:
+#     redis:
+#       host: ${SPRING_DATA_REDIS_HOST:127.0.0.1}
+#       port: ${SPRING_DATA_REDIS_PORT:6379}
+
 management:
   endpoints:
     web:
@@ -61,6 +69,10 @@ management:
     health:
       # 不向前端暴露组件细节（数据库地址等），只返回 UP/DOWN
       show-details: never
+  health:
+    # 引入 data-redis 后健康检查会探测 Redis；默认 memory 限流下无实例，显式关闭避免 /health 变 DOWN
+    redis:
+      enabled: false
 
 logging:
   level:
@@ -71,8 +83,10 @@ app:
   persistence:
     enabled: ${PERSISTENCE_ENABLED:true}
   # 接口限流：登录/注册按 IP 每分钟 10 次（防爆破）；AI 消耗端点按用户每分钟 30 次（防刷）
+  # backend=memory 进程内计数（默认）；backend=redis 多实例共享（需 Redis 实例，故障时自动放行）
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
+    backend: ${RATE_LIMIT_BACKEND:memory}
     auth-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:10}
     ai-per-minute: ${RATE_LIMIT_AI_PER_MINUTE:30}
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）

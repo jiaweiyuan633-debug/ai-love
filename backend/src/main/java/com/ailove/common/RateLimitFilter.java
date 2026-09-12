@@ -1,11 +1,6 @@
 package com.ailove.common;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.ailove.auth.AuthContext;
 import jakarta.servlet.FilterChain;
@@ -16,22 +11,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * 内存滑动窗口限流：登录/注册按客户端 IP 防爆破；AI 消耗端点（/ai/*、TTS、追问建议）
+ * 限流过滤器：登录/注册按客户端 IP 防爆破；AI 消耗端点（/ai/*、TTS、追问建议）
  * 按用户防刷——每次调用都消耗 DashScope 费用，无登录（体验模式）时退化为按 IP。
- * 单实例/少量实例下够用；多实例部署时各实例独立计数（见 docs/LAUNCH.md）。
+ * 计数存储由 {@link RateLimitStore} 提供：默认进程内存，可切换 Redis 实现多实例共享。
  */
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final long WINDOW_MS = 60_000L;
-    /** 键数量硬上限：防止伪造 X-Forwarded-For 刷出大量键撑爆内存 */
-    private static final int MAX_KEYS = 200_000;
 
+    private final RateLimitStore store;
     private final int authPerMinute;
     private final int aiPerMinute;
-    private final Map<String, Deque<Long>> hits = new ConcurrentHashMap<>();
-    private final AtomicLong inserts = new AtomicLong();
 
-    public RateLimitFilter(int authPerMinute, int aiPerMinute) {
+    public RateLimitFilter(RateLimitStore store, int authPerMinute, int aiPerMinute) {
+        this.store = store;
         this.authPerMinute = authPerMinute;
         this.aiPerMinute = aiPerMinute;
     }
@@ -44,7 +37,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        if (allow(limitKey(request, limit), limit)) {
+        if (store.tryAcquire(limitKey(request, limit), limit, WINDOW_MS)) {
             chain.doFilter(request, response);
             return;
         }
@@ -91,41 +84,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return (idx >= 0 ? xff.substring(idx + 1) : xff).trim();
         }
         return request.getRemoteAddr();
-    }
-
-    private boolean allow(String key, int limit) {
-        evictIfNeeded();
-        long now = System.currentTimeMillis();
-        Deque<Long> window = hits.computeIfAbsent(key, k -> new ArrayDeque<>());
-        synchronized (window) {
-            while (!window.isEmpty() && now - window.peekFirst() >= WINDOW_MS) {
-                window.pollFirst();
-            }
-            if (window.size() >= limit) {
-                return false;
-            }
-            window.addLast(now);
-            return true;
-        }
-    }
-
-    /** 周期性清理已过期的键，内存占用稳定在活跃键数量级。 */
-    private void evictIfNeeded() {
-        if (inserts.incrementAndGet() % 4096 != 0) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        hits.entrySet().removeIf(e -> {
-            Deque<Long> window = e.getValue();
-            synchronized (window) {
-                while (!window.isEmpty() && now - window.peekFirst() >= WINDOW_MS) {
-                    window.pollFirst();
-                }
-                return window.isEmpty();
-            }
-        });
-        if (hits.size() > MAX_KEYS) {
-            hits.clear();
-        }
     }
 }

@@ -3,6 +3,7 @@ package com.ailove.unit;
 import java.io.IOException;
 
 import com.ailove.auth.AuthContext;
+import com.ailove.common.InMemoryRateLimitStore;
 import com.ailove.common.RateLimitFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -20,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
  */
 class RateLimitFilterTest {
 
-    private final RateLimitFilter filter = new RateLimitFilter(2, 3);
+    private final RateLimitFilter filter = new RateLimitFilter(new InMemoryRateLimitStore(), 2, 3);
 
     @AfterEach
     void cleanContext() {
