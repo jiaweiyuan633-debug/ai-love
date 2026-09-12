@@ -3,6 +3,7 @@ package com.ailove.config;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.ObjectProvider;
@@ -23,11 +24,19 @@ public class LoveChatClientConfig {
     @Value("classpath:prompts/love-master-system.st")
     private Resource loveMasterSystemPrompt;
 
+    /**
+     * 多轮会话记忆：有持久化仓储（本地/有数据库）时挂接混合仓储（重启后可从库里恢复上下文），
+     * 否则退回进程内默认仓储（云端体验模式）。
+     */
     @Bean
-    public ChatMemory chatMemory() {
-        return MessageWindowChatMemory.builder()
-                .maxMessages(20)
-                .build();
+    public ChatMemory chatMemory(org.springframework.beans.factory.ObjectProvider<ChatMemoryRepository> repositoryProvider) {
+        MessageWindowChatMemory.Builder builder = MessageWindowChatMemory.builder()
+                .maxMessages(40);
+        ChatMemoryRepository repository = repositoryProvider.getIfAvailable();
+        if (repository != null) {
+            builder.chatMemoryRepository(repository);
+        }
+        return builder.build();
     }
 
     @Bean

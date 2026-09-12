@@ -153,6 +153,59 @@ export function openSseStream(
   return () => controller.abort()
 }
 
+// ================= 会话管理（持久化模式） =================
+
+export interface Conversation {
+  id: string
+  title: string
+  ragEnabled: boolean
+  updatedAt: string
+  messageCount: number
+}
+
+export interface StoredMessage {
+  id: number
+  role: 'user' | 'assistant'
+  content: string
+  createdAt: string
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+  const resp = await authRequest('/api/conversations')
+  if (!resp.ok) throw await errorOf(resp, '获取会话列表失败')
+  return resp.json()
+}
+
+export async function createConversation(title?: string): Promise<Conversation> {
+  const resp = await authRequest('/api/conversations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '创建会话失败')
+  return resp.json()
+}
+
+export async function renameConversation(id: string, title: string): Promise<void> {
+  const resp = await authRequest(`/api/conversations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '重命名失败')
+}
+
+export async function deleteConversation(id: string): Promise<void> {
+  const resp = await authRequest(`/api/conversations/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw await errorOf(resp, '删除失败')
+}
+
+export async function listMessages(id: string): Promise<StoredMessage[]> {
+  const resp = await authRequest(`/api/conversations/${id}/messages`)
+  if (!resp.ok) throw await errorOf(resp, '获取历史消息失败')
+  return resp.json()
+}
+
 // ================= 知识库 =================
 
 export async function uploadKnowledge(file: File): Promise<{ file_name: string; chunks: number }> {

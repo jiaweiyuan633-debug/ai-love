@@ -1,0 +1,162 @@
+package com.ailove.chat;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.web.server.ResponseStatusException;
+
+/**
+ * 会话与消息的完整历史落库（append-only）。
+ * 注意：模型上下文窗口由 HybridChatMemoryRepository 维护，两者职责分离。
+ */
+public class ConversationStore {
+
+    public record Conversation(String id, long userId, String title, boolean ragEnabled,
+                               Instant updatedAt, int messageCount) {
+    }
+
+    public record StoredMessage(long id, String role, String content, Instant createdAt) {
+    }
+
+    private final JdbcClient jdbc;
+
+    public ConversationStore(JdbcClient jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    // ---------- 会话 ----------
+
+    public List<Conversation> listByUser(long userId) {
+        return jdbc.sql("""
+                SELECT c.id, c.user_id, c.title, c.rag_enabled, c.updated_at, COUNT(m.id) AS message_count
+                FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
+                WHERE c.user_id = ?
+                GROUP BY c.id, c.user_id, c.title, c.rag_enabled, c.updated_at
+                ORDER BY c.updated_at DESC
+                """)
+                .param(userId)
+                .query((rs, i) -> new Conversation(
+                        rs.getString("id"), rs.getLong("user_id"), rs.getString("title"),
+                        rs.getBoolean("rag_enabled"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getInt("message_count")))
+                .list();
+    }
+
+    public Optional<Conversation> find(String id) {
+        return jdbc.sql("""
+                        SELECT c.id, c.user_id, c.title, c.rag_enabled, c.updated_at,
+                               (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
+                        FROM conversations c WHERE c.id = ?
+                        """)
+                .param(id)
+                .query((rs, i) -> new Conversation(
+                        rs.getString("id"), rs.getLong("user_id"), rs.getString("title"),
+                        rs.getBoolean("rag_enabled"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getInt("message_count")))
+                .optional();
+    }
+
+    /** 确认会话归属：存在但不属于该用户 → 403；不存在 → 自动创建（便于调试接口直连）。 */
+    public void ensureOwned(String conversationId, long userId) {
+        Optional<Conversation> existing = find(conversationId);
+        if (existing.isPresent()) {
+            if (existing.get().userId() != userId) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权访问该会话");
+            }
+            return;
+        }
+        jdbc.sql("INSERT INTO conversations (id, user_id) VALUES (?, ?)")
+                .param(conversationId)
+                .param(userId)
+                .update();
+    }
+
+    public Conversation create(long userId, String title) {
+        String id = UUID.randomUUID().toString().replace("-", "").substring(0, 20);
+        jdbc.sql("INSERT INTO conversations (id, user_id, title) VALUES (?, ?, ?)")
+                .param(id)
+                .param(userId)
+                .param(title == null || title.isBlank() ? "新对话" : title.trim())
+                .update();
+        return find(id).orElseThrow();
+    }
+
+    public void rename(String conversationId, String title) {
+        jdbc.sql("UPDATE conversations SET title = ?, updated_at = now() WHERE id = ?")
+                .param(title)
+                .param(conversationId)
+                .update();
+    }
+
+    public void setRagEnabled(String conversationId, boolean ragEnabled) {
+        jdbc.sql("UPDATE conversations SET rag_enabled = ? WHERE id = ?")
+                .param(ragEnabled)
+                .param(conversationId)
+                .update();
+    }
+
+    public void delete(String conversationId) {
+        jdbc.sql("DELETE FROM messages WHERE conversation_id = ?").param(conversationId).update();
+        jdbc.sql("DELETE FROM conversations WHERE id = ?").param(conversationId).update();
+    }
+
+    // ---------- 消息 ----------
+
+    public List<StoredMessage> listMessages(String conversationId) {
+        return jdbc.sql(
+                "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id")
+                .param(conversationId)
+                .query((rs, i) -> new StoredMessage(
+                        rs.getLong("id"), rs.getString("role"), rs.getString("content"),
+                        rs.getTimestamp("created_at").toInstant()))
+                .list();
+    }
+
+    public void addMessage(String conversationId, String role, String content) {
+        jdbc.sql("INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)")
+                .param(conversationId)
+                .param(role)
+                .param(content)
+                .update();
+        jdbc.sql("UPDATE conversations SET updated_at = now() WHERE id = ?")
+                .param(conversationId)
+                .update();
+    }
+
+    public int countMessages(String conversationId) {
+        return jdbc.sql("SELECT COUNT(*) FROM messages WHERE conversation_id = ?")
+                .param(conversationId)
+                .query(Integer.class)
+                .single();
+    }
+
+    /** 重新生成前使用：删除最后一轮问答（最后一条 assistant 及其前面相邻的 user）。 */
+    public void deleteLastExchange(String conversationId) {
+        record Row(long id, String role) {
+        }
+        List<Row> rows = jdbc.sql(
+                "SELECT id, role FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 2")
+                .param(conversationId)
+                .query((rs, i) -> new Row(rs.getLong("id"), rs.getString("role")))
+                .list();
+        if (rows.isEmpty()) {
+            return;
+        }
+        List<Long> toDelete = new ArrayList<>();
+        toDelete.add(rows.get(0).id());
+        if ("assistant".equals(rows.get(0).role()) && rows.size() > 1 && "user".equals(rows.get(1).role())) {
+            toDelete.add(rows.get(1).id());
+        }
+        for (Long id : toDelete) {
+            jdbc.sql("DELETE FROM messages WHERE id = ?").param(id).update();
+        }
+        jdbc.sql("UPDATE conversations SET updated_at = now() WHERE id = ?")
+                .param(conversationId)
+                .update();
+    }
+}
