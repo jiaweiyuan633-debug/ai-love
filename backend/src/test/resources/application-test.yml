@@ -17,6 +17,9 @@ spring:
 app:
   rate-limit:
     enabled: false
+  # 测试上下文使用内置默认 JWT 密钥（无安全风险），豁免启动期 fail-fast 校验
+  security:
+    allow-insecure-jwt: true
 
 logging:
   level:

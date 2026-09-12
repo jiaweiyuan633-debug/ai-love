@@ -5,7 +5,8 @@ services:
     environment:
       POSTGRES_DB: ai_love
       POSTGRES_USER: ai_love
-      POSTGRES_PASSWORD: ai_love123
+      # 本地开发默认 ai_love123；对外/共享环境务必通过环境变量覆盖
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_love123}
     ports:
       # 宿主机 15432 避让本机原生 PostgreSQL 服务占用的 5432
       - "15432:5432"

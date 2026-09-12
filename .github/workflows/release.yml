@@ -1,7 +1,7 @@
 name: Release
 
 # 推送 v* 标签（或手动触发）时构建原生客户端：
-# - Windows 安装包(NSIS/MSI) + macOS dmg(tauri-action)
+# - Windows 安装包(NSIS) + macOS dmg(tauri-action)
 # - Android APK(调试签名，可直接侧载安装；正式上架需自行配置签名)
 on:
   push:
@@ -42,7 +42,7 @@ jobs:
           projectPath: frontend
           tagName: ${{ github.ref_name }}
           releaseName: 'AI 恋爱大师 ${{ github.ref_name }}'
-          releaseBody: '桌面客户端安装包（Windows NSIS/MSI、macOS dmg）。账号与数据和网页/PWA 版互通。macOS 首次打开需右键→打开绕过 Gatekeeper（未签名）。'
+          releaseBody: '桌面客户端安装包（Windows NSIS、macOS dmg）。账号与数据和网页/PWA 版互通。macOS 首次打开需右键→打开绕过 Gatekeeper（未签名）。'
           releaseDraft: false
           prerelease: false
 
