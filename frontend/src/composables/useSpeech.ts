@@ -104,6 +104,14 @@ export function stopSpeech() {
   speaking.value = false
 }
 
+// 心跳校正：部分环境（无音频输出）utterance 的 onend 不可靠，轮询兜底复位状态
+setInterval(() => {
+  const s = synth()
+  if (speaking.value && s && !s.speaking && !s.pending) {
+    speaking.value = false
+  }
+}, 500)
+
 /** 朗读一条完整消息（切句排队，保证响应及时） */
 export function speakFull(text: string) {
   stopSpeech()

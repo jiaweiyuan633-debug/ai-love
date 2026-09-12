@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   conversations,
@@ -26,7 +26,15 @@ const navs = [
 const editingId = ref('')
 const editTitle = ref('')
 
-onMounted(refreshList)
+// 整页刷新时本组件先于路由守卫完成认证探测而挂载，
+// 因此监听 auth.enabled 变为 true 时再加载会话列表
+watch(
+  () => auth.enabled,
+  (enabled) => {
+    if (enabled) void refreshList()
+  },
+  { immediate: true },
+)
 
 function openConv(id: string) {
   setActive(id)

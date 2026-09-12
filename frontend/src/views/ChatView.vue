@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { listMessages, openSseStream, type StoredMessage } from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
 import { settings } from '../stores/settings'
@@ -37,23 +37,39 @@ const currentTitle = computed(() => {
   return conversations.list.find((c) => c.id === conversations.activeId)?.title || '新对话'
 })
 
-// 切换会话 → 加载历史消息
+// 切换会话 → 加载历史消息。
+// suppressConvWatch：发送首条消息时 ensureActiveConversation 会新建会话并改变 activeId，
+// 此时不应清空正在组装的消息列表（竞态防护）。
+let suppressConvWatch = false
 watch(
   () => conversations.activeId,
-  async (id) => {
-    stopStreamInternal()
-    messages.value = []
-    error.value = ''
-    if (!persistenceEnabled() || !id) return
-    try {
-      const stored: StoredMessage[] = await listMessages(id)
-      messages.value = stored.map((m) => ({ role: m.role, content: m.content, rag: false }))
-      void scrollToBottom()
-    } catch {
-      // 历史加载失败不阻塞聊天
-    }
+  (id) => {
+    if (suppressConvWatch) return
+    void loadHistory(id)
   },
 )
+
+async function loadHistory(id: string) {
+  stopStreamInternal()
+  streaming.value = false
+  messages.value = []
+  error.value = ''
+  if (!persistenceEnabled() || !id) return
+  try {
+    const stored: StoredMessage[] = await listMessages(id)
+    messages.value = stored.map((m) => ({ role: m.role, content: m.content, rag: false }))
+    void scrollToBottom()
+  } catch {
+    // 历史加载失败不阻塞聊天
+  }
+}
+
+// 整页刷新时 activeId 从 localStorage 恢复，watch 不会触发，需要手动加载一次
+onMounted(() => {
+  if (persistenceEnabled() && conversations.activeId) {
+    void loadHistory(conversations.activeId)
+  }
+})
 
 async function scrollToBottom() {
   await nextTick()
@@ -80,11 +96,14 @@ async function streamSend(raw: string, regenerate: boolean) {
   error.value = ''
 
   if (persistenceEnabled() && !conversations.activeId) {
+    suppressConvWatch = true
     try {
       await ensureActiveConversation()
     } catch {
       error.value = '创建会话失败，请重试'
       return
+    } finally {
+      suppressConvWatch = false
     }
   }
 
@@ -109,7 +128,9 @@ async function streamSend(raw: string, regenerate: boolean) {
   closeStream = openSseStream(
     `${endpoint}?${params.toString()}`,
     (token) => {
-      messages.value[replyIndex].content += token
+      const reply = messages.value[replyIndex]
+      if (!reply) return // 会话被切换后消息列表已重建，丢弃过期 token
+      reply.content += token
       feedSpeech(token)
       void scrollToBottom()
     },
@@ -117,8 +138,10 @@ async function streamSend(raw: string, regenerate: boolean) {
       streaming.value = false
       closeStream = null
       finishSpeech()
-      if (!messages.value[replyIndex].content) {
-        messages.value[replyIndex].content = '（没有收到回复，请重试）'
+      const reply = messages.value[replyIndex]
+      if (!reply) return // 会话已切换
+      if (!reply.content) {
+        reply.content = '（没有收到回复，请重试）'
         error.value = '没有收到回复，请确认后端已启动并配置了 DASHSCOPE_API_KEY'
         return
       }

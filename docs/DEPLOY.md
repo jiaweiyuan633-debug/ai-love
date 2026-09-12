@@ -54,3 +54,19 @@ RAG 端点在关闭时返回友好提示而非报错。以后买了 RDS：设 `K
 - [ ] 生产将 HTTP 触发器 `authType` 改为签名鉴权或前置 API 网关
 - [ ] DASHSCOPE_API_KEY 与 ACR 密码建议迁入 FC 密钥管理/KMS
 - [ ] RDS 上线后，白名单从 0.0.0.0/0 收紧到 FC 的 VPC 网段
+
+## 六、产品化升级后的云端开通指引（用户系统 + 持久化）
+
+v2 起，登录/会话持久化/长期记忆由 `PERSISTENCE_ENABLED` 控制。买了 RDS PostgreSQL 后：
+
+1. RDS 白名单放通 FC 的 VPC 网段，库名/账号就绪（需 pgvector 扩展：`CREATE EXTENSION vector;`）；
+2. `s.yaml` backend 环境变量调整：
+   - `PERSISTENCE_ENABLED: "true"`
+   - `KNOWLEDGE_ENABLED: "true"`
+   - `SPRING_AUTOCONFIGURE_EXCLUDE` 删除 DataSource/SqlInitialization/PgVector 三项（置空）
+   - 新增 `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`（或直接覆盖 application.yml 的数据源配置）
+   - 新增 `JWT_SECRET`（≥32 字节随机串，务必不要用默认值）
+3. 重新构建镜像（换新 tag）→ `s deploy backend` → 首次启动自动建表（users/conversations/messages/user_memories/vector_store）；
+4. 前端无需改动：检测到 `/auth/status` 返回 `{"enabled":true}` 即自动显示登录页。
+
+未购买 RDS 期间云端保持 `PERSISTENCE_ENABLED=false`（体验模式）：前端自动跳过登录，对话走内存，其余功能（语音/悬浮窗/主题）不受影响。
