@@ -1,5 +1,7 @@
 # AI 恋爱大师 + YuManus 自主规划智能体
 
+![CI](https://github.com/jiaweiyuan633-debug/ai-love/actions/workflows/ci.yml/badge.svg)
+
 基于 **Spring AI + RAG + MCP + Agent** 的超级智能体实战项目 —— 一个真实可用的 AI 恋爱顾问与情感陪伴产品。
 
 ## 产品功能
