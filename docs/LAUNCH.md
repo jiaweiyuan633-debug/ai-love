@@ -62,6 +62,21 @@
      情感边界声明、协议页），用户量上来后咨询当地网信部门。
 5. **配置备份**：RDS 控制台开启自动备份（默认 7 天）；数据含用户情感记录，建议保留期 ≥ 30 天。
 6. **监控**：FC 控制台配置函数错误率/耗时告警；`/actuator/health` 接入可用性拨测。
+
+### AccessKey 轮换操作指引（2026-09-12 确认：当前是主账号 Key，只能在控制台轮换）
+
+主账号 AccessKey 没有任何 API 可以创建/禁用，必须在控制台登录（密码 + 短信验证）后操作：
+
+1. 登录 [RAM 控制台 - 身份管理](https://ram.console.aliyun.com/overview)，推荐做 **方案 A**：
+   - **方案 A（推荐，权限最小化）**：左侧"用户"→ 创建用户 `ai-love-deploy`（勾选"OpenAPI 调用访问"）→ 授权
+     `AliyunFCFullAccess` + `AliyunContainerRegistryFullAccess` → 为该用户创建 AccessKey；
+   - **方案 B（快捷，风险同旧 Key）**：页面右上角头像 → AccessKey 管理 → 创建 AccessKey（短信验证）。
+2. 新 Key 就绪后更新本地部署凭据（替换命令中的三个占位）：
+   `s config add --AccessKeyID <新ID> --AccessKeySecret <新Secret> -a default --force`
+3. 回到控制台**禁用并删除旧 Key**（`LTAI5t7...inqK`）：方案 A 在"用户详情 - AccessKey"里，
+   方案 B 在主账号 AccessKey 管理页。建议先禁用观察 2-3 天再删除。
+4. 影响面确认：ACR 镜像仓库登录密码独立于 AccessKey（docker push 不受影响）；
+   DASHSCOPE_API_KEY 无关；该 Key 仅本机 `s` CLI 在用。
 7. **PEXELS_API_KEY（可选）**：MCP 图片搜索工具的图源 key，不用该功能可不配。
 
 ### 上线后首批用户观察项

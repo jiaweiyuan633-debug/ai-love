@@ -50,7 +50,7 @@ RAG 端点在关闭时返回友好提示而非报错。以后买了 RDS：设 `K
 
 ## 五、安全清单
 
-- [ ] 部署用的 AccessKey 建议之后轮换（曾出现在对话中）
+- [ ] 部署用的 AccessKey 建议之后轮换（曾出现在对话中；**2026-09-12 已确认为主账号 Key，须控制台轮换**，步骤见 [LAUNCH.md](LAUNCH.md) AccessKey 轮换一节）
 - [ ] 生产将 HTTP 触发器 `authType` 改为签名鉴权或前置 API 网关
 - [ ] DASHSCOPE_API_KEY 与 ACR 密码建议迁入 FC 密钥管理/KMS
 - [ ] RDS 上线后，白名单从 0.0.0.0/0 收紧到 FC 的 VPC 网段
