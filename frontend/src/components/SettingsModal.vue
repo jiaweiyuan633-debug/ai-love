@@ -4,13 +4,25 @@ import { useRouter } from 'vue-router'
 import { settings } from '../stores/settings'
 import { ui } from '../stores/ui'
 import { auth, clearSession } from '../stores/auth'
-import { deleteMemoryItem, listMemory, patchMe, clearMemory, type MemoryItem } from '../api'
+import {
+  bindCouple,
+  deleteMemoryItem,
+  generateCoupleCode,
+  getCoupleStatus,
+  listMemory,
+  patchMe,
+  clearMemory,
+  setAnniversary,
+  unbindCouple,
+  type CoupleStatus,
+  type MemoryItem,
+} from '../api'
 import { zhVoices } from '../composables/useSpeech'
 
 const router = useRouter()
 const emit = defineEmits<{ close: [] }>()
 
-const tab = ref<'appearance' | 'voice' | 'ball' | 'account'>('appearance')
+const tab = ref<'appearance' | 'voice' | 'ball' | 'couple' | 'account'>('appearance')
 
 const themes = [
   { value: 'light', label: '☀️ 浅色' },
@@ -36,7 +48,80 @@ const voices = ref<SpeechSynthesisVoice[]>([])
 onMounted(() => {
   voices.value = zhVoices()
   void refreshMemory()
+  if (auth.user) void refreshCouple()
 })
+
+// ---------- 情侣绑定 ----------
+const couple = ref<CoupleStatus | null>(null)
+const myCode = ref('')
+const partnerCodeInput = ref('')
+const anniversaryInput = ref('')
+const coupleError = ref('')
+const codeCopied = ref(false)
+
+async function refreshCouple() {
+  coupleError.value = ''
+  try {
+    couple.value = await getCoupleStatus()
+    if (couple.value.pending && couple.value.code) myCode.value = couple.value.code
+    if (couple.value.anniversaryDate) anniversaryInput.value = couple.value.anniversaryDate
+  } catch {
+    // 静默
+  }
+}
+
+async function makeCode() {
+  coupleError.value = ''
+  try {
+    myCode.value = await generateCoupleCode()
+    couple.value = await getCoupleStatus()
+  } catch (e) {
+    coupleError.value = e instanceof Error ? e.message : '生成失败'
+  }
+}
+
+async function doBind() {
+  coupleError.value = ''
+  try {
+    couple.value = await bindCouple(partnerCodeInput.value)
+    partnerCodeInput.value = ''
+  } catch (e) {
+    coupleError.value = e instanceof Error ? e.message : '绑定失败'
+  }
+}
+
+async function saveAnniversary() {
+  coupleError.value = ''
+  if (!anniversaryInput.value) return
+  try {
+    couple.value = await setAnniversary(anniversaryInput.value)
+  } catch (e) {
+    coupleError.value = e instanceof Error ? e.message : '保存失败'
+  }
+}
+
+async function doUnbind() {
+  if (!window.confirm('确定解除情侣绑定吗？双方的共享记忆注入会立即停止（各自记忆保留）。')) return
+  coupleError.value = ''
+  try {
+    await unbindCouple()
+    couple.value = await getCoupleStatus()
+    myCode.value = ''
+  } catch (e) {
+    coupleError.value = e instanceof Error ? e.message : '解绑失败'
+  }
+}
+
+async function copyCode() {
+  if (!myCode.value) return
+  try {
+    await navigator.clipboard.writeText(myCode.value)
+    codeCopied.value = true
+    setTimeout(() => (codeCopied.value = false), 1200)
+  } catch {
+    // 剪贴板不可用时忽略
+  }
+}
 
 // ---------- 记忆 ----------
 const memoryItems = ref<MemoryItem[]>([])
@@ -120,6 +205,7 @@ const isGuest = computed(() => !auth.user)
           <button :class="{ active: tab === 'appearance' }" @click="tab = 'appearance'">🎨 外观</button>
           <button :class="{ active: tab === 'voice' }" @click="tab = 'voice'">🔊 语音</button>
           <button :class="{ active: tab === 'ball' }" @click="tab = 'ball'">🫧 悬浮窗</button>
+          <button :class="{ active: tab === 'couple' }" @click="tab = 'couple'">💕 情侣</button>
           <button :class="{ active: tab === 'account' }" @click="tab = 'account'">👤 记忆与账号</button>
         </nav>
 
@@ -203,6 +289,61 @@ const isGuest = computed(() => !auth.user)
                 <span class="knob"></span>
               </span>
             </label>
+          </section>
+
+          <!-- 情侣 -->
+          <section v-if="tab === 'couple'" class="section">
+            <template v-if="!isGuest">
+              <p class="hint">绑定后 AI 会同时记得两个人的信息：你们共享彼此的长期记忆，还能设置恋爱纪念日，临近时聊天会收到贴心提醒。</p>
+
+              <template v-if="couple?.bound">
+                <div class="couple-card">
+                  <div class="couple-emoji">💕</div>
+                  <div>
+                    <div class="row-title">已与「{{ couple.partnerNickname }}」绑定</div>
+                    <p v-if="couple.daysTogether != null" class="days">
+                      在一起 {{ couple.daysTogether }} 天 ❤️
+                    </p>
+                  </div>
+                </div>
+
+                <div class="row-title">恋爱纪念日</div>
+                <div class="nickname-row">
+                  <input v-model="anniversaryInput" type="date" class="select" />
+                  <button class="mini-btn" @click="saveAnniversary">保存</button>
+                </div>
+                <p class="hint">纪念日当天与前几天，聊天页顶部会出现提醒。</p>
+
+                <button class="danger-btn" @click="doUnbind">💔 解除绑定</button>
+              </template>
+
+              <template v-else-if="couple?.pending || myCode">
+                <div class="row-title">我的绑定码</div>
+                <div class="code-box">
+                  <span class="code">{{ myCode || '……' }}</span>
+                  <button class="mini-btn" @click="copyCode">{{ codeCopied ? '✅ 已复制' : '复制' }}</button>
+                </div>
+                <p class="hint">把绑定码发给你的另一半，TA 在「设置 → 💕 情侣」输入即可完成绑定。</p>
+                <div class="row-title">或输入对方的绑定码</div>
+                <div class="nickname-row">
+                  <input
+                    v-model="partnerCodeInput"
+                    class="select"
+                    placeholder="如 7KX2M9AB"
+                    maxlength="12"
+                    style="text-transform: uppercase"
+                  />
+                  <button class="mini-btn" :disabled="!partnerCodeInput.trim()" @click="doBind">绑定</button>
+                </div>
+              </template>
+
+              <template v-else>
+                <button class="couple-start" @click="makeCode">💕 生成我的绑定码</button>
+              </template>
+
+              <p v-if="coupleError" class="error-line">{{ coupleError }}</p>
+            </template>
+            <div v-else class="hint">体验模式下暂无情侣绑定功能。</div>
           </section>
 
           <!-- 记忆与账号 -->
@@ -495,5 +636,56 @@ header h2 {
 }
 .danger-btn:hover {
   background: var(--danger-bg);
+}
+.couple-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.couple-emoji {
+  font-size: 30px;
+}
+.days {
+  font-size: 13px;
+  color: var(--a1);
+  margin: 2px 0 0;
+}
+.code-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px dashed var(--a2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.code {
+  flex: 1;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--text);
+  font-family: Consolas, monospace;
+}
+.couple-start {
+  border: 1px dashed var(--a2);
+  background: transparent;
+  color: var(--text);
+  border-radius: 12px;
+  padding: 14px 0;
+  font-size: 14px;
+  cursor: pointer;
+}
+.couple-start:hover {
+  background: var(--hover);
+}
+.error-line {
+  color: var(--danger-text);
+  font-size: 12px;
+  margin: 8px 0 0;
 }
 </style>

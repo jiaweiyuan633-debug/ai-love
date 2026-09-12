@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { listMessages, openSseStream, exportConversation, type StoredMessage } from '../api'
+import {
+  fetchDailyQuote,
+  getCoupleStatus,
+  listMessages,
+  openSseStream,
+  exportConversation,
+  type CoupleStatus,
+  type StoredMessage,
+} from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
 import { settings } from '../stores/settings'
 import { feedSpeech, finishSpeech, speakFull, speaking, stopSpeech } from '../composables/useSpeech'
@@ -70,7 +78,56 @@ onMounted(() => {
   if (persistenceEnabled() && conversations.activeId) {
     void loadHistory(conversations.activeId)
   }
+  if (persistenceEnabled()) {
+    // 纪念日提醒
+    getCoupleStatus()
+      .then((c) => (coupleInfo.value = c))
+      .catch(() => undefined)
+    // 每日情话：每天首次进入时展示
+    const today = new Date().toISOString().slice(0, 10)
+    if (localStorage.getItem('ailove:quoteDate') !== today) {
+      fetchDailyQuote()
+        .then((d) => {
+          dailyQuote.value = d.quote
+          showQuote.value = true
+        })
+        .catch(() => undefined)
+    }
+  }
 })
+
+// ---------- 纪念日提醒 ----------
+const coupleInfo = ref<CoupleStatus | null>(null)
+const anniversaryBanner = computed(() => {
+  const c = coupleInfo.value
+  if (!c?.bound || c.daysToAnniversary == null) return ''
+  if (c.daysToAnniversary === 0) {
+    return `💝 今天是你们和「${c.partnerNickname}」的恋爱纪念日！快送上祝福吧 🎉`
+  }
+  if (c.daysToAnniversary <= 7) {
+    return `💝 距离你们的恋爱纪念日还有 ${c.daysToAnniversary} 天，要不要提前准备点惊喜？`
+  }
+  return ''
+})
+
+// ---------- 每日情话 ----------
+const dailyQuote = ref('')
+const showQuote = ref(false)
+
+function dismissQuote() {
+  localStorage.setItem('ailove:quoteDate', new Date().toISOString().slice(0, 10))
+  showQuote.value = false
+}
+
+async function refreshQuote() {
+  try {
+    const d = await fetchDailyQuote(true)
+    dailyQuote.value = d.quote
+    showQuote.value = true
+  } catch {
+    // 静默
+  }
+}
 
 async function scrollToBottom() {
   await nextTick()
@@ -261,6 +318,15 @@ function resetSession() {
       </div>
     </div>
 
+    <div v-if="anniversaryBanner" class="notice-banner anniversary">{{ anniversaryBanner }}</div>
+    <div v-if="showQuote && dailyQuote" class="notice-banner quote">
+      <span class="q-text">💌 今日情话：{{ dailyQuote }}</span>
+      <span class="q-actions">
+        <button @click="refreshQuote">换一句</button>
+        <button title="今天不再显示" @click="dismissQuote">✕</button>
+      </span>
+    </div>
+
     <div class="msg-list">
       <div v-if="messages.length === 0" class="welcome">
         <h2>我是 AI 恋爱大师 💘</h2>
@@ -397,6 +463,49 @@ function resetSession() {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+}
+.notice-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.notice-banner.anniversary {
+  background: linear-gradient(135deg, rgba(255, 107, 157, 0.16), rgba(167, 107, 255, 0.16));
+  border: 1px solid rgba(255, 107, 157, 0.45);
+  color: var(--text);
+}
+.notice-banner.quote {
+  background: var(--bg-card);
+  border: 1px dashed var(--a2);
+  color: var(--text-2);
+}
+.notice-banner .q-text {
+  flex: 1;
+  min-width: 0;
+}
+.notice-banner .q-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.notice-banner .q-actions button {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-4);
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 2px 10px;
+  cursor: pointer;
+}
+.notice-banner .q-actions button:hover {
+  color: var(--text);
+  border-color: var(--a2);
 }
 .welcome {
   text-align: center;

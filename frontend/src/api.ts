@@ -257,6 +257,64 @@ export async function clearMemory(): Promise<void> {
   if (!resp.ok) throw await errorOf(resp, '清空失败')
 }
 
+// ================= 情侣绑定 =================
+
+export interface CoupleStatus {
+  bound: boolean
+  pending: boolean
+  code: string | null
+  partnerNickname: string | null
+  anniversaryDate: string | null
+  daysTogether: number | null
+  daysToAnniversary: number | null
+}
+
+export async function getCoupleStatus(): Promise<CoupleStatus> {
+  const resp = await authRequest('/api/couple')
+  if (!resp.ok) throw await errorOf(resp, '获取情侣状态失败')
+  return resp.json()
+}
+
+export async function generateCoupleCode(): Promise<string> {
+  const resp = await authRequest('/api/couple/code', { method: 'POST' })
+  if (!resp.ok) throw await errorOf(resp, '生成绑定码失败')
+  const data = await resp.json()
+  return data.code
+}
+
+export async function bindCouple(code: string): Promise<CoupleStatus> {
+  const resp = await authRequest('/api/couple/bind', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '绑定失败')
+  return resp.json()
+}
+
+export async function setAnniversary(date: string): Promise<CoupleStatus> {
+  const resp = await authRequest('/api/couple', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ anniversaryDate: date }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '保存失败')
+  return resp.json()
+}
+
+export async function unbindCouple(): Promise<void> {
+  const resp = await authRequest('/api/couple', { method: 'DELETE' })
+  if (!resp.ok) throw await errorOf(resp, '解绑失败')
+}
+
+// ================= 每日情话 =================
+
+export async function fetchDailyQuote(refresh = false): Promise<{ date: string; quote: string }> {
+  const resp = await authRequest(`/api/daily-quote${refresh ? '?refresh=true' : ''}`)
+  if (!resp.ok) throw await errorOf(resp, '获取今日情话失败')
+  return resp.json()
+}
+
 // ================= 知识库 =================
 
 export async function uploadKnowledge(file: File): Promise<{ file_name: string; chunks: number }> {

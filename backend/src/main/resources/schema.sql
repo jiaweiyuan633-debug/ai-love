@@ -36,3 +36,14 @@ CREATE TABLE IF NOT EXISTS user_memories (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_user_memories_user ON user_memories (user_id, id DESC);
+
+-- 情侣绑定：code 供一方生成、另一方提交完成绑定
+CREATE TABLE IF NOT EXISTS couples (
+    id               BIGSERIAL PRIMARY KEY,
+    code             VARCHAR(12) UNIQUE NOT NULL,
+    user_a           BIGINT NOT NULL,
+    user_b           BIGINT,
+    anniversary_date DATE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_couples_users ON couples (user_a, user_b);

@@ -6,6 +6,7 @@ import com.ailove.auth.AuthContext;
 import com.ailove.chat.AutoTitleService;
 import com.ailove.chat.ConversationStore;
 import com.ailove.chat.MemoryService;
+import com.ailove.couple.CoupleService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
@@ -40,6 +41,7 @@ public class LoveChatController {
     private final ConversationStore conversationStore;
     private final AutoTitleService autoTitleService;
     private final MemoryService memoryService;
+    private final CoupleService coupleService;
     private final String personaPrompt;
 
     public LoveChatController(ChatClient loveChatClient, ChatMemory chatMemory,
@@ -47,6 +49,7 @@ public class LoveChatController {
                               ObjectProvider<ConversationStore> conversationStoreProvider,
                               ObjectProvider<AutoTitleService> autoTitleProvider,
                               ObjectProvider<MemoryService> memoryServiceProvider,
+                              ObjectProvider<CoupleService> coupleServiceProvider,
                               @Value("classpath:prompts/love-master-system.st") Resource personaResource) {
         this.loveChatClient = loveChatClient;
         this.chatMemory = chatMemory;
@@ -54,6 +57,7 @@ public class LoveChatController {
         this.conversationStore = conversationStoreProvider.getIfAvailable();
         this.autoTitleService = autoTitleProvider.getIfAvailable();
         this.memoryService = memoryServiceProvider.getIfAvailable();
+        this.coupleService = coupleServiceProvider.getIfAvailable();
         try (var in = personaResource.getInputStream()) {
             this.personaPrompt = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
@@ -148,13 +152,25 @@ public class LoveChatController {
         }
     }
 
-    /** system prompt = 恋爱大师人设 + 用户长期记忆块（无记忆时只用人设）。 */
+    /** system prompt = 恋爱大师人设 + 用户长期记忆块 + 情侣绑定块（纪念日/共享记忆）。 */
     private String buildSystem(Long userId) {
-        if (memoryService == null || userId == null) {
+        if (userId == null) {
             return personaPrompt;
         }
-        String memoryBlock = memoryService.memoryBlock(userId);
-        return memoryBlock.isEmpty() ? personaPrompt : personaPrompt + "\n\n" + memoryBlock;
+        StringBuilder sb = new StringBuilder(personaPrompt);
+        if (memoryService != null) {
+            String memoryBlock = memoryService.memoryBlock(userId);
+            if (!memoryBlock.isEmpty()) {
+                sb.append("\n\n").append(memoryBlock);
+            }
+        }
+        if (coupleService != null) {
+            String coupleBlock = coupleService.coupleBlock(userId);
+            if (!coupleBlock.isEmpty()) {
+                sb.append("\n\n").append(coupleBlock);
+            }
+        }
+        return sb.toString();
     }
 
     /** 对话结束后异步提炼长期记忆（体验模式或内容为空时跳过）。 */
