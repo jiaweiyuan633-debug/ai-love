@@ -7,6 +7,7 @@ import { auth, clearSession } from '../stores/auth'
 import {
   bindCouple,
   deleteMemoryItem,
+  fetchAchievements,
   generateCoupleCode,
   getCoupleStatus,
   listMemory,
@@ -14,6 +15,7 @@ import {
   clearMemory,
   setAnniversary,
   unbindCouple,
+  type Achievement,
   type CoupleStatus,
   type MemoryItem,
 } from '../api'
@@ -37,7 +39,7 @@ function preview(personaId: string) {
 const router = useRouter()
 const emit = defineEmits<{ close: [] }>()
 
-const tab = ref<'appearance' | 'voice' | 'ball' | 'couple' | 'account'>('appearance')
+const tab = ref<'appearance' | 'voice' | 'ball' | 'couple' | 'account' | 'achievements'>('appearance')
 
 const themes = [
   { value: 'light', label: '☀️ 浅色' },
@@ -63,8 +65,22 @@ const voices = ref<SpeechSynthesisVoice[]>([])
 onMounted(() => {
   voices.value = zhVoices()
   void refreshMemory()
-  if (auth.user) void refreshCouple()
+  if (auth.user) {
+    void refreshCouple()
+    void refreshAchievements()
+  }
 })
+
+// ---------- 成就徽章 ----------
+const achievements = ref<Achievement[]>([])
+async function refreshAchievements() {
+  if (!auth.enabled) return
+  try {
+    achievements.value = await fetchAchievements()
+  } catch {
+    // 成就加载失败不影响其它设置
+  }
+}
 
 // ---------- 情侣绑定 ----------
 const couple = ref<CoupleStatus | null>(null)
@@ -221,6 +237,7 @@ const isGuest = computed(() => !auth.user)
           <button :class="{ active: tab === 'voice' }" @click="tab = 'voice'">🔊 语音</button>
           <button :class="{ active: tab === 'ball' }" @click="tab = 'ball'">🫧 悬浮窗</button>
           <button :class="{ active: tab === 'couple' }" @click="tab = 'couple'">💕 情侣</button>
+          <button :class="{ active: tab === 'achievements' }" @click="tab = 'achievements'">🏆 成就</button>
           <button :class="{ active: tab === 'account' }" @click="tab = 'account'">👤 记忆与账号</button>
         </nav>
 
@@ -390,6 +407,29 @@ const isGuest = computed(() => !auth.user)
             <div v-else class="hint">体验模式下暂无情侣绑定功能。</div>
           </section>
 
+          <!-- 我的成就 -->
+          <section v-if="tab === 'achievements'" class="section">
+            <template v-if="!isGuest">
+              <div class="ach-grid">
+                <div
+                  v-for="a in achievements"
+                  :key="a.id"
+                  class="ach-card"
+                  :class="{ unlocked: a.unlocked }"
+                >
+                  <div class="ach-emoji">{{ a.unlocked ? a.emoji : '🔒' }}</div>
+                  <div class="ach-name">{{ a.name }}</div>
+                  <div class="ach-desc">{{ a.description }}</div>
+                  <div class="ach-progress-bar">
+                    <div class="ach-progress" :style="{ width: (a.progress * 100).toFixed(0) + '%' }"></div>
+                  </div>
+                  <div class="ach-progress-text">{{ a.progressText }}</div>
+                </div>
+              </div>
+            </template>
+            <p v-else class="hint">登录后开启成就之旅～</p>
+          </section>
+
           <!-- 记忆与账号 -->
           <section v-if="tab === 'account'" class="section">
             <template v-if="!isGuest">
@@ -511,6 +551,60 @@ header h2 {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.ach-card {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  opacity: 0.62;
+}
+.ach-card.unlocked {
+  opacity: 1;
+  border-color: rgba(255, 107, 157, 0.5);
+  background: linear-gradient(160deg, rgba(255, 107, 157, 0.1), rgba(167, 107, 255, 0.1));
+}
+.ach-emoji {
+  font-size: 26px;
+}
+.ach-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ach-desc {
+  font-size: 11px;
+  color: var(--text-4);
+  min-height: 15px;
+}
+.ach-progress-bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--hover);
+  overflow: hidden;
+  margin-top: 4px;
+}
+.ach-progress {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-grad);
+  transition: width 0.3s;
+}
+.ach-progress-text {
+  font-size: 11px;
+  color: var(--text-4);
 }
 .row-title {
   display: flex;

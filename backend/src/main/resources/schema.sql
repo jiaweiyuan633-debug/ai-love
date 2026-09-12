@@ -79,3 +79,15 @@ CREATE TABLE IF NOT EXISTS moment_comments (
     created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_moment_comments_moment ON moment_comments (moment_id, id);
+
+-- 心情打卡：每天一条（1-5 分），用于情绪趋势与成就
+CREATE TABLE IF NOT EXISTS mood_logs (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT      NOT NULL,
+    score      INT         NOT NULL CHECK (score BETWEEN 1 AND 5),
+    note       VARCHAR(200),
+    mdate      DATE        NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (user_id, mdate)
+);
+CREATE INDEX IF NOT EXISTS idx_mood_user ON mood_logs (user_id, mdate DESC);

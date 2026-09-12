@@ -80,6 +80,8 @@ function switchMode() {
         {{ mode === 'login' ? '还没有账号？' : '已有账号？' }}
         <a @click="switchMode">{{ mode === 'login' ? '立即注册' : '去登录' }}</a>
       </p>
+
+      <p class="ai-notice">内容由 AI 生成 · 仅供陪伴与参考 · 不能替代真实人际关系与专业帮助</p>
     </div>
   </div>
 </template>
@@ -198,5 +200,11 @@ function switchMode() {
 .tip a {
   color: var(--danger-text);
   cursor: pointer;
+}
+.ai-notice {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-5);
+  margin: 18px 0 0;
 }
 </style>

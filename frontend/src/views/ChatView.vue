@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   fetchCarePending,
   fetchDailyQuote,
+  fetchMoodStatus,
   fetchPersonas,
   fetchSuggestions,
   getCoupleStatus,
@@ -10,8 +11,10 @@ import {
   openSseStream,
   exportConversation,
   patchConversationPersona,
+  checkInMood,
   type CareMessage,
   type CoupleStatus,
+  type MoodStatus,
   type Persona,
   type StoredMessage,
 } from '../api'
@@ -45,6 +48,47 @@ const pickedMode = ref<'advisor' | 'companion'>('advisor')
 const guestPersona = ref('jiejie')
 const guestGreeting = ref('')
 const care = ref<CareMessage | null>(null)
+
+// ---------- 心情打卡 ----------
+const mood = ref<MoodStatus | null>(null)
+const moodReply = ref('')
+const moodSubmitting = ref(false)
+
+function moodEmoji(score: number): string {
+  return ['', '😣', '😕', '😐', '🙂', '😊'][score] || '😐'
+}
+
+async function doMood(score: number) {
+  if (moodSubmitting.value) return
+  moodSubmitting.value = true
+  try {
+    const r = await checkInMood(score, undefined, activePersonaId.value)
+    mood.value = r.status
+    moodReply.value = r.reply
+    setTimeout(() => (moodReply.value = ''), 30000)
+  } catch {
+    // 打卡失败不打扰聊天
+  } finally {
+    moodSubmitting.value = false
+  }
+}
+
+/** 7 天心情 SVG 折线坐标（宽 112 高 26，留 3px 边距） */
+function trendPoints(): { line: string; dots: { x: number; y: number; s: number }[] } {
+  const list = mood.value?.recent7 || []
+  const dots: { x: number; y: number; s: number }[] = []
+  const w = 112
+  const h = 26
+  const pad = 3
+  list.forEach((e, i) => {
+    const x = list.length === 1 ? w / 2 : pad + (i * (w - pad * 2)) / (list.length - 1)
+    const y = e.score > 0 ? pad + ((5 - e.score) * (h - pad * 2)) / 4 : h - pad
+    dots.push({ x, y, s: e.score })
+  })
+  const checked = dots.filter((d) => d.s > 0)
+  const line = checked.map((d) => `${d.x},${d.y}`).join(' ')
+  return { line, dots }
+}
 
 const activeConv = computed(() =>
   conversations.list.find((c) => c.id === conversations.activeId),
@@ -189,6 +233,10 @@ onMounted(() => {
       .then((msg) => {
         if (msg) care.value = msg
       })
+      .catch(() => undefined)
+    // 心情打卡状态
+    fetchMoodStatus()
+      .then((m) => (mood.value = m))
       .catch(() => undefined)
   }
 })
@@ -457,6 +505,43 @@ function resetSession() {
       </div>
     </div>
 
+    <div v-if="persistenceEnabled() && mood && !mood.checkedToday" class="mood-bar">
+      <span class="mood-label">今天心情如何？</span>
+      <button
+        v-for="i in 5"
+        :key="i"
+        class="mood-emoji"
+        :disabled="moodSubmitting"
+        @click="doMood(i)"
+      >{{ moodEmoji(i) }}</button>
+      <span v-if="mood.streak > 0" class="mood-streak">🔥 连续 {{ mood.streak }} 天</span>
+    </div>
+    <div v-else-if="persistenceEnabled() && mood" class="mood-bar done">
+      <span class="mood-label">今日心情 {{ moodEmoji(mood.todayScore || 3) }}</span>
+      <svg class="mood-trend" width="112" height="26" viewBox="0 0 112 26">
+        <polyline
+          v-if="trendPoints().line"
+          :points="trendPoints().line"
+          fill="none"
+          stroke="var(--a2)"
+          stroke-width="1.5"
+        />
+        <circle
+          v-for="(d, i) in trendPoints().dots"
+          :key="i"
+          :cx="d.x"
+          :cy="d.y"
+          :r="d.s > 0 ? 2.5 : 1.5"
+          :fill="d.s > 0 ? 'var(--a1)' : 'var(--border-strong)'"
+        />
+      </svg>
+      <span class="mood-streak">🔥 连续 {{ mood.streak }} 天</span>
+    </div>
+    <div v-if="moodReply" class="mood-reply">
+      <span class="mood-reply-avatar">{{ activePersona?.emoji || '💘' }}</span>
+      {{ moodReply }}
+    </div>
+
     <div class="msg-list">
       <div v-if="messages.length === 0" class="welcome">
         <h2>选择一位角色开始 💘</h2>
@@ -548,6 +633,9 @@ function resetSession() {
       <button v-if="streaming" class="stop-btn" @click="stop">停止</button>
       <button v-else class="send-btn" :disabled="!input.trim()" @click="send()">发送</button>
     </div>
+    <p v-if="activeMode === 'companion'" class="companion-footnote">
+      内容由 AI 生成 · TA 不是真人 · AI 陪伴不能替代真实的人际关系与专业心理帮助
+    </p>
   </div>
 </template>
 
@@ -822,6 +910,73 @@ function resetSession() {
 .care-reply:hover {
   color: #fff;
   border-color: var(--a2);
+}
+.mood-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 16px 0;
+  padding: 8px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.mood-bar.done {
+  opacity: 0.85;
+}
+.mood-label {
+  white-space: nowrap;
+}
+.mood-emoji {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px;
+  transition: transform 0.12s;
+}
+.mood-emoji:hover {
+  transform: scale(1.25);
+}
+.mood-emoji:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.mood-trend {
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+.mood-streak {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-4);
+  white-space: nowrap;
+}
+.mood-reply {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 16px 0;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border: 1px dashed var(--a2);
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+.mood-reply-avatar {
+  font-size: 18px;
+}
+.companion-footnote {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-5);
+  padding: 4px 16px 8px;
+  border-top: 1px solid var(--border);
+  margin: 0;
 }
 .suggestion-row {
   display: flex;

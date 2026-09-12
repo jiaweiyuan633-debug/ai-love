@@ -449,3 +449,57 @@ export async function fetchCarePending(persona: string): Promise<CareMessage | n
     return null
   }
 }
+
+// ================= 心情打卡 =================
+
+export interface MoodEntry {
+  date: string
+  score: number
+  note: string | null
+}
+
+export interface MoodStatus {
+  checkedToday: boolean
+  todayScore: number | null
+  note: string | null
+  streak: number
+  recent7: MoodEntry[]
+}
+
+export async function fetchMoodStatus(): Promise<MoodStatus> {
+  const resp = await authRequest('/api/mood')
+  if (!resp.ok) throw await errorOf(resp, '获取心情状态失败')
+  return resp.json()
+}
+
+export async function checkInMood(
+  score: number,
+  note?: string,
+  persona?: string,
+): Promise<{ reply: string; status: MoodStatus }> {
+  const resp = await authRequest(`/api/mood?persona=${encodeURIComponent(persona || 'jiejie')}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ score, note }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '打卡失败')
+  return resp.json()
+}
+
+// ================= 成就徽章 =================
+
+export interface Achievement {
+  id: string
+  name: string
+  emoji: string
+  description: string
+  unlocked: boolean
+  progress: number
+  progressText: string
+}
+
+export async function fetchAchievements(): Promise<Achievement[]> {
+  const resp = await authRequest('/api/achievements')
+  if (!resp.ok) throw await errorOf(resp, '获取成就失败')
+  return resp.json()
+}

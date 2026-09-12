@@ -122,6 +122,60 @@ RAG 检索增强版流式对话：先检索知识库 top4 片段再回答。参�
 调用链：DashScope CosyVoice 非实时接口 → 返回 24h 音频 URL → 后端下载转投（前端不直连，
 避免 HTTPS 混合内容问题）。体验模式同样可用。
 
+## 1.11 角色目录与双模式（需登录）
+
+### GET /api/personas
+返回 6 位角色的完整卡片信息（id/name/emoji/tagline/color + 两种模式的开场白）。
+统一数据源：`PersonaCatalog`（聊天 system prompt、TTS 音色、朋友圈语气均引用它）。
+
+### 会话绑定角色
+- `POST /api/conversations` 请求体支持 `persona`、`mode`（`advisor`=恋爱顾问 / `companion`=暖心陪伴）；
+  companion 模式自动落库一条角色开场白。
+- `PATCH /api/conversations/{id}` 在会话 0 条消息时可改绑 persona/mode。
+- 对话接口（/ai/love_chat/stream 等）新增 `persona`、`mode` 参数：
+  advisor 用恋爱大师底稿+角色咨询风格，companion 用陪伴底稿（含情感边界约束）+角色人设。
+
+### POST /api/conversations/{id}/suggestions
+按最后一轮问答生成 3 个追问建议（qwen-turbo，进程内 LRU 缓存）：`{"suggestions": ["…","…","…"]}`
+
+## 1.12 AI 朋友圈（需登录）
+
+### GET /api/moments?persona=jiejie
+返回该角色最近 10 条动态（含评论）。今天的动态不存在时同步生成一次（结合用户长期记忆，
+角色口吻，40~80 字），按 (用户, 角色, 日期) 幂等。
+
+### POST /api/moments/{id}/like
+切换点赞，返回 `{"liked": true}`。
+
+### POST /api/moments/{id}/comments
+```json
+{"content": "哈哈好呀"}
+```
+插入用户评论并异步生成角色回复（人设语气），返回全部评论。
+
+## 1.13 主动关怀（需登录）
+
+### GET /api/care/pending?persona=jiejie
+触发规则：超过 12 小时没聊天 / 当天早晨(5-11 点)首次来访 / 深夜(23 点后)在线。
+命中时返回 `{"type":"away|morning|night","content":"…"}`（角色口吻，按用户+日期+类型去重），
+否则返回 `{}`。
+
+## 1.14 心情打卡与成就（需登录）
+
+### GET /api/mood
+`{"checkedToday":false,"todayScore":null,"streak":0,"recent7":[{"date":"2026-09-12","score":4,"note":null}, …]}`
+recent7 固定 7 天（未打卡日 score=0，旧→新）。
+
+### POST /api/mood?persona=jiejie
+```json
+{"score": 4, "note": "今天很顺利"}
+```
+打卡（当日重复打卡覆盖），返回 `{"reply":"角色的回应","status":{…}}`。
+
+### GET /api/achievements
+12 枚成就实时计算（对话量/心情连续打卡/情侣绑定与在一起天数/记忆条数/多角色体验）：
+`[{"id":"chat_10","name":"畅聊新手","emoji":"🌱","description":"累计对话 10 轮","unlocked":false,"progress":0.4,"progressText":"4/10 轮"}, …]`
+
 ## 2. YuManus 智能体
 
 ### GET /ai/yumanus/stream
