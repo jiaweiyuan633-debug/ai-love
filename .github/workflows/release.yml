@@ -89,3 +89,9 @@ jobs:
           name: ai-love-android-apk
           path: frontend/src-tauri/gen/android/app/build/outputs/apk/**/*-debug.apk
           if-no-files-found: error
+      - name: 同时上传 APK 到 GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(find frontend/src-tauri/gen/android/app/build/outputs/apk -name "*-debug.apk" | head -1)
+          gh release upload "${GITHUB_REF_NAME}" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
