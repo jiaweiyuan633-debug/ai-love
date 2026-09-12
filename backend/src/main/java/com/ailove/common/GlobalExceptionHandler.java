@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Map;
 
@@ -37,6 +38,12 @@ public class GlobalExceptionHandler {
                 ? HttpStatus.UNPROCESSABLE_ENTITY
                 : HttpStatus.BAD_GATEWAY;
         return ResponseEntity.status(status).body(Map.of("error", AiErrorMessages.friendly(e)));
+    }
+
+    /** 未知路径（含体验模式下未装配的接口）：返回 404 而非 500。 */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, String>> handleNotFound(NoResourceFoundException e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "接口不存在"));
     }
 
     @ExceptionHandler(Exception.class)

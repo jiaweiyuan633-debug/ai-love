@@ -40,7 +40,7 @@ resources:
       timeout: 600
       internetAccess: true
       customContainerConfig:
-        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:backend-v3
+        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:backend-v5
         port: 9000
       environmentVariables:
         DASHSCOPE_API_KEY: ${env(DASHSCOPE_API_KEY)}
@@ -75,7 +75,7 @@ resources:
       timeout: 600
       internetAccess: true
       customContainerConfig:
-        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:frontend-v5
+        image: crpi-ygiptetxof3iff6u.cn-hangzhou.personal.cr.aliyuncs.com/ai_love/ai_love:frontend-v6
         port: 80
       environmentVariables:
         BACKEND_UPSTREAM: ${env(BACKEND_UPSTREAM)}
