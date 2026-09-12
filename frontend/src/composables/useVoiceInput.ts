@@ -15,7 +15,7 @@ export interface VoiceInputOptions {
 }
 
 /**
- * 语音输入（参考豆包按住说话/点按说话）：基于 Web Speech API 的 SpeechRecognition。
+ * 语音输入（点按开始/停止的连续听写）：基于 Web Speech API 的 SpeechRecognition。
  * - 连续听写：浏览器在静音后自动断句结束，这里静默重启保持连续；
  * - interim 结果实时上屏（作为占位提示），final 结果回调给调用方。
  */

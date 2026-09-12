@@ -6,7 +6,7 @@ import { ui } from '../stores/ui'
 import { newConversation, persistenceEnabled } from '../stores/conversations'
 import { stopSpeech } from '../composables/useSpeech'
 /**
- * 悬浮窗助手（参考豆包悬浮球）：可拖动、点击展开快捷面板，
+ * 悬浮窗助手：可拖动、点击展开快捷面板，
  * 位置记忆在 localStorage，可在设置里关闭。
  */
 const router = useRouter()

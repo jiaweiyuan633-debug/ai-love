@@ -3,7 +3,7 @@ import { settings } from '../stores/settings'
 import { auth, onUnauthorized } from '../stores/auth'
 
 /**
- * 语音朗读（豆包式）——双引擎：
+ * 语音朗读——双引擎：
  * 1. 人设引擎（默认）：后端 CosyVoice 高拟真 TTS（温柔御姐/邻家小妹/高冷总裁/清纯男大/中二少年/知心姐姐），
  *    按句请求 /api/tts 返回 mp3，HTMLAudioElement 顺序播放，入队即预取掩盖延迟；
  * 2. 浏览器引擎（免费兜底）：Web Speech API speechSynthesis。
