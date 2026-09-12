@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS conversations (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+-- 角色化会话：会话绑定的角色与模式（advisor=恋爱顾问 / companion=暖心陪伴）
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS persona VARCHAR(24) NOT NULL DEFAULT 'jiejie';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS mode VARCHAR(16) NOT NULL DEFAULT 'advisor';
 CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations (user_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -54,3 +57,25 @@ CREATE TABLE IF NOT EXISTS daily_quotes (
     content    VARCHAR(500) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- AI 朋友圈：角色以自己的口吻每天发一条动态；用户可点赞、评论（AI 会回复）
+CREATE TABLE IF NOT EXISTS moments (
+    id         BIGSERIAL PRIMARY KEY,
+    user_id    BIGINT       NOT NULL,
+    persona    VARCHAR(24)  NOT NULL DEFAULT 'jiejie',
+    content    VARCHAR(300) NOT NULL,
+    liked      BOOLEAN      NOT NULL DEFAULT FALSE,
+    mdate      DATE         NOT NULL,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (user_id, persona, mdate)
+);
+CREATE INDEX IF NOT EXISTS idx_moments_user ON moments (user_id, persona, mdate DESC);
+
+CREATE TABLE IF NOT EXISTS moment_comments (
+    id         BIGSERIAL PRIMARY KEY,
+    moment_id  BIGINT       NOT NULL,
+    role       VARCHAR(8)   NOT NULL, -- user / ai
+    content    VARCHAR(300) NOT NULL,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_moment_comments_moment ON moment_comments (moment_id, id);

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.ailove.auth.AuthContext;
+import com.ailove.persona.PersonaCatalog;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
@@ -51,7 +52,41 @@ public class ConversationController {
     @PostMapping
     public ConversationStore.Conversation create(@RequestBody(required = false) Map<String, String> body) {
         String title = body == null ? null : body.get("title");
-        return store.create(currentUserId(), title);
+        String persona = body == null ? null : body.get("persona");
+        String mode = body == null ? null : body.get("mode");
+        PersonaCatalog.Persona p = PersonaCatalog.find(persona);
+        String normalizedMode = "companion".equals(mode) ? "companion" : "advisor";
+        ConversationStore.Conversation conv = store.create(currentUserId(), title, p.id(), normalizedMode);
+        if ("companion".equals(normalizedMode)) {
+            // 陪伴模式：落库一条角色开场白，进入会话即可看到（同时进入模型上下文）
+            store.addMessage(conv.id(), "assistant", p.companionGreeting());
+        }
+        return store.find(conv.id()).orElseThrow();
+    }
+
+    /** 重命名；也支持在会话还没有消息时改绑角色与模式（陪伴模式补发开场白）。 */
+    @PatchMapping("/{id}")
+    public ConversationStore.Conversation rename(@PathVariable String id,
+                                                 @RequestBody Map<String, String> body) {
+        requireOwned(id);
+        String title = body.get("title");
+        if (title != null && !title.isBlank()) {
+            store.rename(id, title.trim().length() > 60 ? title.trim().substring(0, 60) : title.trim());
+        }
+        String persona = body.get("persona");
+        String mode = body.get("mode");
+        if (persona != null || mode != null) {
+            if (store.countMessages(id) > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "会话已开始，不能更换角色");
+            }
+            PersonaCatalog.Persona p = PersonaCatalog.find(persona);
+            String normalizedMode = "companion".equals(mode) ? "companion" : "advisor";
+            store.updatePersonaMode(id, p.id(), normalizedMode);
+            if ("companion".equals(normalizedMode) && store.countMessages(id) == 0) {
+                store.addMessage(id, "assistant", p.companionGreeting());
+            }
+        }
+        return store.find(id).orElseThrow();
     }
 
     @GetMapping("/{id}/messages")
@@ -97,18 +132,6 @@ public class ConversationController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + filename)
                 .body(sb.toString());
-    }
-
-    @PatchMapping("/{id}")
-    public ConversationStore.Conversation rename(@PathVariable String id,
-                                                 @RequestBody Map<String, String> body) {
-        requireOwned(id);
-        String title = body.get("title");
-        if (title == null || title.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题不能为空");
-        }
-        store.rename(id, title.trim().length() > 60 ? title.trim().substring(0, 60) : title.trim());
-        return store.find(id).orElseThrow();
     }
 
     @DeleteMapping("/{id}")

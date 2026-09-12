@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
+  fetchCarePending,
   fetchDailyQuote,
+  fetchPersonas,
   fetchSuggestions,
   getCoupleStatus,
   listMessages,
   openSseStream,
   exportConversation,
+  patchConversationPersona,
+  type CareMessage,
   type CoupleStatus,
+  type Persona,
   type StoredMessage,
 } from '../api'
-import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
+import { conversations, ensureActiveConversation, newConversation, persistenceEnabled, refreshList, setActive } from '../stores/conversations'
 import { auth } from '../stores/auth'
 import { settings } from '../stores/settings'
 import { renderMarkdown } from '../utils/markdown'
@@ -34,6 +39,75 @@ const copiedIndex = ref(-1)
 const followUps = ref<string[]>([])
 let closeStream: (() => void) | null = null
 
+// ---------- 角色（双模式） ----------
+const personas = ref<Persona[]>([])
+const pickedMode = ref<'advisor' | 'companion'>('advisor')
+const guestPersona = ref('jiejie')
+const guestGreeting = ref('')
+const care = ref<CareMessage | null>(null)
+
+const activeConv = computed(() =>
+  conversations.list.find((c) => c.id === conversations.activeId),
+)
+const activePersonaId = computed(() => {
+  if (!persistenceEnabled()) return guestPersona.value
+  return activeConv.value?.persona || 'jiejie'
+})
+const activeMode = computed(() => activeConv.value?.mode || 'advisor')
+const activePersona = computed(() =>
+  personas.value.find((p) => p.id === activePersonaId.value) || null,
+)
+
+/** 空会话时展示角色选择（体验模式也一样，选中后本地展示开场白） */
+function pickPersona(p: Persona, mode: 'advisor' | 'companion') {
+  settings.voicePersona = p.id
+  if (!persistenceEnabled()) {
+    guestPersona.value = p.id
+    guestGreeting.value = mode === 'companion' ? p.companionGreeting : p.advisorGreeting
+    messages.value = [{ role: 'assistant', content: guestGreeting.value, ts: Date.now() }]
+    return
+  }
+  void (async () => {
+    try {
+      const conv = activeConv.value
+      if (conv && conv.messageCount === 0) {
+        // 空会话：直接改绑角色，陪伴模式后端会补发开场白
+        await patchConversationPersona(conv.id, p.id, mode)
+        await refreshList()
+        // activeId 未变，手动重载历史以显示开场白
+        const stored: StoredMessage[] = await listMessages(conv.id)
+        messages.value = stored.map((m) => ({
+          role: m.role,
+          content: m.content,
+          rag: false,
+          ts: Date.parse(m.createdAt) || undefined,
+        }))
+      } else {
+        // 从欢迎屏/换角色进入：新建会话（watch 自动加载开场白）
+        await newConversation(p.id, mode)
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '选择角色失败'
+    }
+  })()
+}
+
+/** 试听角色声音：临时切换朗读角色并读开场白 */
+function previewVoice(p: Persona) {
+  settings.voicePersona = p.id
+  speakFull(p.advisorGreeting)
+}
+
+/** 回应角色的主动关怀：预填一句感谢，用户可修改后发送 */
+function replyCare() {
+  input.value = '谢谢你的关心，听到你这么说很开心～'
+  care.value = null
+  void nextTick(() => {
+    const el = document.querySelector<HTMLInputElement>('.input-bar textarea')
+    el?.focus()
+  })
+}
+
 const suggestions = [
   '我喜欢上一个同事，怎么自然地开始聊天？',
   '第一次约会该选什么地点？',
@@ -45,6 +119,11 @@ const suggestions = [
 function currentChatId(): string {
   return persistenceEnabled() ? conversations.activeId : guestChatId.value
 }
+
+// 朗读音色跟随当前会话的角色（体验模式跟随所选角色）
+watch(activePersonaId, (id) => {
+  if (id) settings.voicePersona = id
+}, { immediate: true })
 
 const currentTitle = computed(() => {
   if (!persistenceEnabled()) return '体验模式'
@@ -86,6 +165,7 @@ async function loadHistory(id: string) {
 
 // 整页刷新时 activeId 从 localStorage 恢复，watch 不会触发，需要手动加载一次
 onMounted(() => {
+  void fetchPersonas().then((list) => (personas.value = list)).catch(() => undefined)
   if (persistenceEnabled() && conversations.activeId) {
     void loadHistory(conversations.activeId)
   }
@@ -104,6 +184,12 @@ onMounted(() => {
         })
         .catch(() => undefined)
     }
+    // 角色的主动关怀（离线留言）
+    fetchCarePending(activePersonaId.value)
+      .then((msg) => {
+        if (msg) care.value = msg
+      })
+      .catch(() => undefined)
   }
 })
 
@@ -201,6 +287,8 @@ async function streamSend(raw: string, regenerate: boolean) {
     conversations.list.find((c) => c.id === conversations.activeId)?.title === '新对话'
 
   const params = new URLSearchParams({ message, chatId: currentChatId() })
+  params.set('persona', activePersonaId.value)
+  params.set('mode', activeMode.value)
   if (regenerate) params.set('regenerate', 'true')
   const endpoint = ragEnabled.value ? '/ai/love_chat/rag_stream' : '/ai/love_chat/stream'
 
@@ -313,6 +401,9 @@ function resetSession() {
   streaming.value = false
   messages.value = []
   guestChatId.value = 'chat-' + Date.now().toString(36)
+  // 回到角色选择
+  guestGreeting.value = ''
+  care.value = null
 }
 </script>
 
@@ -321,6 +412,12 @@ function resetSession() {
     <div class="toolbar">
       <span class="conv-title">{{ currentTitle }}</span>
       <span v-if="!persistenceEnabled()" class="guest-badge">体验模式 · 历史不保存</span>
+      <button
+        v-else-if="activePersona && conversations.activeId"
+        class="persona-chip"
+        title="换一个角色开始新会话"
+        @click="setActive('')"
+      >{{ activePersona.emoji }} {{ activePersona.name }} · {{ activeMode === 'companion' ? '陪伴' : '顾问' }}</button>
       <div class="toolbar-right">
         <button
           v-if="persistenceEnabled() && conversations.activeId"
@@ -349,11 +446,41 @@ function resetSession() {
       </span>
     </div>
 
+    <div v-if="care && messages.length" class="care-card">
+      <div class="care-avatar" :style="activePersona ? { background: `linear-gradient(135deg, ${activePersona.color}, #a76bff)` } : {}">
+        {{ activePersona?.emoji || '💘' }}
+      </div>
+      <div class="care-body">
+        <div class="care-title">{{ activePersona?.name || 'TA' }} 悄悄给你发来一条消息</div>
+        <div class="care-content">{{ care.content }}</div>
+        <button class="care-reply" @click="replyCare">回一句</button>
+      </div>
+    </div>
+
     <div class="msg-list">
       <div v-if="messages.length === 0" class="welcome">
-        <h2>我是 AI 恋爱大师 💘</h2>
-        <p>任何恋爱、脱单、约会问题都可以问我，也支持查天气、生成 PDF 恋爱报告、检索恋爱知识库。</p>
-        <div class="suggestion-row">
+        <h2>选择一位角色开始 💘</h2>
+        <p>每位角色都有独特的性格与声音，可随时切换两种模式：恋爱顾问帮你出主意，暖心陪伴陪你聊聊天。</p>
+        <div class="mode-row">
+          <button :class="{ on: pickedMode === 'advisor' }" @click="pickedMode = 'advisor'">🎯 恋爱顾问</button>
+          <button :class="{ on: pickedMode === 'companion' }" @click="pickedMode = 'companion'">💞 暖心陪伴</button>
+        </div>
+        <div class="persona-grid">
+          <div
+            v-for="p in personas"
+            :key="p.id"
+            class="persona-card"
+            @click="pickPersona(p, pickedMode)"
+          >
+            <div class="p-avatar" :style="{ background: `linear-gradient(135deg, ${p.color}, #a76bff)` }">
+              {{ p.emoji }}
+            </div>
+            <div class="p-name">{{ p.name }}</div>
+            <div class="p-tagline">{{ p.tagline }}</div>
+            <button class="p-preview" title="试听角色声音" @click.stop="previewVoice(p)">▶ 试听</button>
+          </div>
+        </div>
+        <div v-if="pickedMode === 'advisor'" class="suggestion-row">
           <button v-for="s in suggestions" :key="s" class="suggestion" @click="send(s)">
             {{ s }}
           </button>
@@ -554,10 +681,147 @@ function resetSession() {
 .welcome {
   text-align: center;
   color: var(--text-3);
-  margin-top: 60px;
+  margin-top: 36px;
 }
 .welcome h2 {
   color: var(--text);
+}
+.mode-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.mode-row button {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.mode-row button.on {
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: #fff;
+}
+.persona-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  max-width: 720px;
+  margin: 20px auto 0;
+}
+.persona-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  padding: 16px 12px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.persona-card:hover {
+  border-color: var(--a2);
+  transform: translateY(-2px);
+}
+.p-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin-bottom: 2px;
+}
+.p-name {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+}
+.p-tagline {
+  color: var(--text-4);
+  font-size: 12px;
+  text-align: center;
+  min-height: 18px;
+}
+.p-preview {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-4);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.p-preview:hover {
+  color: #fff;
+  border-color: var(--a2);
+}
+.persona-chip {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.persona-chip:hover {
+  border-color: var(--a2);
+  color: #fff;
+}
+.care-card {
+  display: flex;
+  gap: 12px;
+  margin: 12px 16px 0;
+  padding: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--a2);
+  border-radius: 14px;
+}
+.care-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  background: var(--accent-grad);
+}
+.care-title {
+  font-size: 12px;
+  color: var(--text-4);
+  margin-bottom: 4px;
+}
+.care-content {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.6;
+}
+.care-reply {
+  margin-top: 8px;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-2);
+  border-radius: 999px;
+  padding: 3px 14px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.care-reply:hover {
+  color: #fff;
+  border-color: var(--a2);
 }
 .suggestion-row {
   display: flex;

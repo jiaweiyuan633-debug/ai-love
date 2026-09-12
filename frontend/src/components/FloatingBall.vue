@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { settings } from '../stores/settings'
 import { ui } from '../stores/ui'
-import { newConversation, persistenceEnabled } from '../stores/conversations'
+import { persistenceEnabled, setActive } from '../stores/conversations'
 import { stopSpeech } from '../composables/useSpeech'
 /**
  * 悬浮窗助手：可拖动、点击展开快捷面板，
@@ -70,12 +70,16 @@ async function newChat() {
   open.value = false
   router.push('/')
   if (persistenceEnabled()) {
-    try {
-      await newConversation()
-    } catch {
-      // 失败保持现状
-    }
+    // 回到角色选择屏，选定角色后创建会话
+    setActive('')
+  } else {
+    // 体验模式：重置由 ChatView 的 resetSession 处理，这里仅跳转
   }
+}
+
+function openMoments() {
+  open.value = false
+  router.push('/moments')
 }
 
 function toggleVoice() {
@@ -99,6 +103,7 @@ function hideBall() {
     <transition name="pop">
       <div v-if="open" class="ball-panel">
         <button @click="newChat">💬 新的对话</button>
+        <button v-if="persistenceEnabled()" @click="openMoments">🌸 TA的朋友圈</button>
         <button @click="toggleVoice">
           {{ settings.voiceEnabled ? '🔇 关闭朗读' : '🔊 开启朗读' }}
         </button>

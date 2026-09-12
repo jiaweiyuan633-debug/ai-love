@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class ConversationStore {
 
     public record Conversation(String id, long userId, String title, boolean ragEnabled,
+                               String persona, String mode,
                                Instant updatedAt, int messageCount) {
     }
 
@@ -38,30 +39,33 @@ public class ConversationStore {
 
     public List<Conversation> listByUser(long userId) {
         return jdbc.sql("""
-                SELECT c.id, c.user_id, c.title, c.rag_enabled, c.updated_at, COUNT(m.id) AS message_count
+                SELECT c.id, c.user_id, c.title, c.rag_enabled, c.persona, c.mode, c.updated_at,
+                       COUNT(m.id) AS message_count
                 FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id
                 WHERE c.user_id = ?
-                GROUP BY c.id, c.user_id, c.title, c.rag_enabled, c.updated_at
+                GROUP BY c.id, c.user_id, c.title, c.rag_enabled, c.persona, c.mode, c.updated_at
                 ORDER BY c.updated_at DESC
                 """)
                 .param(userId)
                 .query((rs, i) -> new Conversation(
                         rs.getString("id"), rs.getLong("user_id"), rs.getString("title"),
-                        rs.getBoolean("rag_enabled"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getBoolean("rag_enabled"), rs.getString("persona"), rs.getString("mode"),
+                        rs.getTimestamp("updated_at").toInstant(),
                         rs.getInt("message_count")))
                 .list();
     }
 
     public Optional<Conversation> find(String id) {
         return jdbc.sql("""
-                        SELECT c.id, c.user_id, c.title, c.rag_enabled, c.updated_at,
+                        SELECT c.id, c.user_id, c.title, c.rag_enabled, c.persona, c.mode, c.updated_at,
                                (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id) AS message_count
                         FROM conversations c WHERE c.id = ?
                         """)
                 .param(id)
                 .query((rs, i) -> new Conversation(
                         rs.getString("id"), rs.getLong("user_id"), rs.getString("title"),
-                        rs.getBoolean("rag_enabled"), rs.getTimestamp("updated_at").toInstant(),
+                        rs.getBoolean("rag_enabled"), rs.getString("persona"), rs.getString("mode"),
+                        rs.getTimestamp("updated_at").toInstant(),
                         rs.getInt("message_count")))
                 .optional();
     }
@@ -81,14 +85,25 @@ public class ConversationStore {
                 .update();
     }
 
-    public Conversation create(long userId, String title) {
+    public Conversation create(long userId, String title, String persona, String mode) {
         String id = UUID.randomUUID().toString().replace("-", "").substring(0, 20);
-        jdbc.sql("INSERT INTO conversations (id, user_id, title) VALUES (?, ?, ?)")
+        jdbc.sql("INSERT INTO conversations (id, user_id, title, persona, mode) VALUES (?, ?, ?, ?, ?)")
                 .param(id)
                 .param(userId)
                 .param(title == null || title.isBlank() ? "新对话" : title.trim())
+                .param(persona == null ? "jiejie" : persona)
+                .param(mode == null ? "advisor" : mode)
                 .update();
         return find(id).orElseThrow();
+    }
+
+    /** 会话未开始聊天（0 条消息）时允许改绑角色/模式。 */
+    public void updatePersonaMode(String conversationId, String persona, String mode) {
+        jdbc.sql("UPDATE conversations SET persona = ?, mode = ? WHERE id = ?")
+                .param(persona)
+                .param(mode)
+                .param(conversationId)
+                .update();
     }
 
     public void rename(String conversationId, String title) {

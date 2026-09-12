@@ -3,7 +3,6 @@ import { watch, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   conversations,
-  newConversation,
   persistenceEnabled,
   refreshList,
   removeConversation,
@@ -19,6 +18,7 @@ const router = useRouter()
 
 const navs = [
   { name: 'chat', icon: '💬', label: '恋爱大师' },
+  { name: 'moments', icon: '🌸', label: 'TA的朋友圈' },
   { name: 'yumanus', icon: '🤖', label: 'YuManus 智能体' },
   { name: 'knowledge', icon: '📚', label: '恋爱知识库' },
 ]
@@ -46,12 +46,9 @@ async function createNew() {
     router.push('/')
     return
   }
-  try {
-    if (route.name !== 'chat') router.push('/')
-    await newConversation()
-  } catch {
-    // 创建失败保持现状
-  }
+  // 回到角色选择屏：选定角色后才真正创建会话
+  setActive('')
+  if (route.name !== 'chat') router.push('/')
 }
 
 function startRename(conv: Conversation) {

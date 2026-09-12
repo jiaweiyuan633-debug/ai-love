@@ -10,6 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.ailove.persona.PersonaCatalog;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,26 +20,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * 高拟真人设语音合成（阿里云 DashScope CosyVoice）。
- * 6 个人设音色：温柔御姐/邻家小妹/高冷总裁/清纯男大/中二少年/知心姐姐。
- * 结果按 (人设+文本) 做内存 LRU 缓存，重复朗读零成本。
+ * 音色跟随 PersonaCatalog 的 6 个统一角色；结果按 (人设+文本) 做内存 LRU 缓存，重复朗读零成本。
  */
 @Service
 public class TtsService {
 
-    /** 人设定义：id 由前端引用，voice 为 CosyVoice 音色，rate/pitch 为基准语速/音调 */
-    public record Persona(String id, String label, String emoji, String description,
-                          String voice, double rate, double pitch) {
-    }
-
-    private static final List<Persona> PERSONAS = List.of(
-            new Persona("yujie", "温柔御姐", "🌙", "低柔从容、成熟魅力", "loongbella_v2", 0.95, 0.95),
-            new Persona("xiaomei", "邻家小妹", "🍬", "甜美俏皮、元气满满", "longwan_v2", 1.05, 1.1),
-            new Persona("ceo", "高冷总裁", "🧊", "磁性低沉、冷静克制", "longcheng_v2", 0.9, 0.9),
-            new Persona("nanda", "清纯男大", "🎓", "干净清爽、真诚少年", "longshu_v2", 1.0, 1.05),
-            new Persona("zhonger", "中二少年", "⚡", "热血中二、戏剧张力", "longjielidou_v2", 1.1, 1.15),
-            new Persona("jiejie", "知心姐姐", "☕", "温暖亲切、治愈抚慰", "longxiaoxia_v2", 0.95, 1.0));
-
-    /** 单次合成文本上限（前端按句合成，正常远小于此值） */
     private static final int MAX_TEXT_LENGTH = 300;
     private static final int CACHE_MAX_ENTRIES = 200;
 
@@ -58,8 +44,8 @@ public class TtsService {
         this.apiKey = apiKey;
     }
 
-    public List<Persona> listPersonas() {
-        return PERSONAS;
+    public List<PersonaCatalog.Persona> listPersonas() {
+        return PersonaCatalog.ALL;
     }
 
     public byte[] synthesize(String personaId, String text, Double userRate) {
@@ -70,10 +56,7 @@ public class TtsService {
         if (trimmed.length() > MAX_TEXT_LENGTH) {
             trimmed = trimmed.substring(0, MAX_TEXT_LENGTH);
         }
-        Persona persona = PERSONAS.stream()
-                .filter(p -> p.id().equals(personaId))
-                .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "未知的音色人设"));
+        PersonaCatalog.Persona persona = PersonaCatalog.find(personaId);
         double factor = userRate == null ? 1.0 : clamp(userRate, 0.5, 2.0);
         double rate = clamp(persona.rate() * factor, 0.5, 2.0);
         String cacheKey = persona.id() + '|' + rate + '|' + trimmed;
@@ -90,7 +73,7 @@ public class TtsService {
         return audio;
     }
 
-    private byte[] callCosyVoice(Persona persona, String text, double rate) {
+    private byte[] callCosyVoice(PersonaCatalog.Persona persona, String text, double rate) {
         try {
             Map<String, Object> body = Map.of(
                     "model", "cosyvoice-v2",
@@ -146,12 +129,12 @@ public class TtsService {
     /** 供前端渲染的人设列表（不含内部字段）。 */
     public List<Map<String, Object>> personaViews() {
         List<Map<String, Object>> views = new ArrayList<>();
-        for (Persona p : PERSONAS) {
+        for (PersonaCatalog.Persona p : PersonaCatalog.ALL) {
             views.add(Map.of(
                     "id", p.id(),
-                    "label", p.label(),
+                    "label", p.name(),
                     "emoji", p.emoji(),
-                    "description", p.description()));
+                    "description", p.tagline()));
         }
         return views;
     }

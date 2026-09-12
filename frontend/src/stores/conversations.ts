@@ -36,8 +36,11 @@ export function setActive(id: string) {
   else localStorage.removeItem(ACTIVE_KEY)
 }
 
-export async function newConversation(): Promise<Conversation> {
-  const conv = await createConversation()
+export async function newConversation(
+  persona?: string,
+  mode?: 'advisor' | 'companion',
+): Promise<Conversation> {
+  const conv = await createConversation(undefined, persona, mode)
   await refreshList()
   setActive(conv.id)
   return conv

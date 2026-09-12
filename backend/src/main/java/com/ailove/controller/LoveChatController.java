@@ -7,6 +7,7 @@ import com.ailove.chat.AutoTitleService;
 import com.ailove.chat.ConversationStore;
 import com.ailove.chat.MemoryService;
 import com.ailove.couple.CoupleService;
+import com.ailove.persona.PersonaCatalog;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
@@ -42,7 +43,8 @@ public class LoveChatController {
     private final AutoTitleService autoTitleService;
     private final MemoryService memoryService;
     private final CoupleService coupleService;
-    private final String personaPrompt;
+    private final String advisorPrompt;
+    private final String companionPrompt;
 
     public LoveChatController(ChatClient loveChatClient, ChatMemory chatMemory,
                               ObjectProvider<VectorStore> vectorStoreProvider,
@@ -50,7 +52,8 @@ public class LoveChatController {
                               ObjectProvider<AutoTitleService> autoTitleProvider,
                               ObjectProvider<MemoryService> memoryServiceProvider,
                               ObjectProvider<CoupleService> coupleServiceProvider,
-                              @Value("classpath:prompts/love-master-system.st") Resource personaResource) {
+                              @Value("classpath:prompts/love-master-system.st") Resource personaResource,
+                              @Value("classpath:prompts/companion-system.st") Resource companionResource) {
         this.loveChatClient = loveChatClient;
         this.chatMemory = chatMemory;
         this.vectorStore = vectorStoreProvider.getIfAvailable();
@@ -59,20 +62,27 @@ public class LoveChatController {
         this.memoryService = memoryServiceProvider.getIfAvailable();
         this.coupleService = coupleServiceProvider.getIfAvailable();
         try (var in = personaResource.getInputStream()) {
-            this.personaPrompt = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            this.advisorPrompt = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("无法读取恋爱大师人设提示词", e);
+        }
+        try (var in = companionResource.getInputStream()) {
+            this.companionPrompt = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("无法读取陪伴模式提示词", e);
         }
     }
 
     /** 同步对话（调试/脚本用），同样落库。 */
     @GetMapping
     public String chat(@RequestParam String message,
-                       @RequestParam(defaultValue = "default") String chatId) {
+                       @RequestParam(defaultValue = "default") String chatId,
+                       @RequestParam(defaultValue = "jiejie") String persona,
+                       @RequestParam(defaultValue = "advisor") String mode) {
         Long userId = AuthContext.userId();
         ensureConversation(chatId, userId);
         String reply = loveChatClient.prompt()
-                .system(buildSystem(userId))
+                .system(buildSystem(userId, persona, mode))
                 .user(message)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, chatId))
                 .call()
@@ -87,8 +97,10 @@ public class LoveChatController {
     public Flux<ServerSentEvent<String>> stream(@RequestParam String message,
                                                 @RequestParam(defaultValue = "default") String chatId,
                                                 @RequestParam(defaultValue = "false") boolean regenerate,
-                                                @RequestParam(required = false) String model) {
-        return chatStream(message, chatId, regenerate, model, false);
+                                                @RequestParam(required = false) String model,
+                                                @RequestParam(defaultValue = "jiejie") String persona,
+                                                @RequestParam(defaultValue = "advisor") String mode) {
+        return chatStream(message, chatId, regenerate, model, false, persona, mode);
     }
 
     /** RAG 检索增强对话：先检索知识库相关片段再回答（未配置向量库时给出提示）。 */
@@ -96,16 +108,19 @@ public class LoveChatController {
     public Flux<ServerSentEvent<String>> ragStream(@RequestParam String message,
                                                    @RequestParam(defaultValue = "default") String chatId,
                                                    @RequestParam(defaultValue = "false") boolean regenerate,
-                                                   @RequestParam(required = false) String model) {
+                                                   @RequestParam(required = false) String model,
+                                                   @RequestParam(defaultValue = "jiejie") String persona,
+                                                   @RequestParam(defaultValue = "advisor") String mode) {
         if (vectorStore == null) {
             return Flux.just(ServerSentEvent.builder("知识库功能未启用：当前部署未配置向量数据库。")
                     .build(), ServerSentEvent.builder("[DONE]").build());
         }
-        return chatStream(message, chatId, regenerate, model, true);
+        return chatStream(message, chatId, regenerate, model, true, persona, mode);
     }
 
     private Flux<ServerSentEvent<String>> chatStream(String message, String chatId,
-                                                     boolean regenerate, String model, boolean rag) {
+                                                     boolean regenerate, String model, boolean rag,
+                                                     String persona, String mode) {
         Long userId = AuthContext.userId();
         ensureConversation(chatId, userId);
         if (conversationStore != null && userId != null && regenerate) {
@@ -116,7 +131,7 @@ public class LoveChatController {
 
         StringBuilder reply = new StringBuilder();
         ChatClient.ChatClientRequestSpec spec = loveChatClient.prompt()
-                .system(buildSystem(userId))
+                .system(buildSystem(userId, persona, mode))
                 .user(message);
         if (model != null && !model.isBlank()) {
             spec = spec.options(OpenAiChatOptions.builder().model(model).build());
@@ -152,12 +167,19 @@ public class LoveChatController {
         }
     }
 
-    /** system prompt = 恋爱大师人设 + 用户长期记忆块 + 情侣绑定块（纪念日/共享记忆）。 */
-    private String buildSystem(Long userId) {
+    /**
+     * system prompt = 基础人设（顾问 or 陪伴）+ 角色风格段 + 用户长期记忆块 + 情侣绑定块。
+     * 顾问模式：恋爱大师底稿 + 该角色的咨询风格；陪伴模式：陪伴底稿 + 该角色的陪伴人设。
+     */
+    private String buildSystem(Long userId, String personaId, String mode) {
+        PersonaCatalog.Persona persona = PersonaCatalog.find(personaId);
+        boolean companion = "companion".equals(mode);
+        StringBuilder sb = new StringBuilder(companion ? companionPrompt : advisorPrompt);
+        sb.append("\n\n# 你的角色\n")
+                .append(companion ? persona.companionRole() : persona.advisorStyle());
         if (userId == null) {
-            return personaPrompt;
+            return sb.toString();
         }
-        StringBuilder sb = new StringBuilder(personaPrompt);
         if (memoryService != null) {
             String memoryBlock = memoryService.memoryBlock(userId);
             if (!memoryBlock.isEmpty()) {

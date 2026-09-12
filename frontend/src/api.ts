@@ -159,8 +159,40 @@ export interface Conversation {
   id: string
   title: string
   ragEnabled: boolean
+  persona: string
+  mode: 'advisor' | 'companion'
   updatedAt: string
   messageCount: number
+}
+
+export interface Persona {
+  id: string
+  name: string
+  emoji: string
+  tagline: string
+  color: string
+  advisorGreeting: string
+  companionGreeting: string
+}
+
+export async function fetchPersonas(): Promise<Persona[]> {
+  const resp = await authRequest('/api/personas')
+  if (!resp.ok) throw await errorOf(resp, '获取角色列表失败')
+  return resp.json()
+}
+
+export async function createConversation(
+  title?: string,
+  persona?: string,
+  mode?: 'advisor' | 'companion',
+): Promise<Conversation> {
+  const resp = await authRequest('/api/conversations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title, persona, mode }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '创建会话失败')
+  return resp.json()
 }
 
 export interface StoredMessage {
@@ -176,16 +208,6 @@ export async function listConversations(): Promise<Conversation[]> {
   return resp.json()
 }
 
-export async function createConversation(title?: string): Promise<Conversation> {
-  const resp = await authRequest('/api/conversations', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title }),
-  })
-  if (!resp.ok) throw await errorOf(resp, '创建会话失败')
-  return resp.json()
-}
-
 export async function renameConversation(id: string, title: string): Promise<void> {
   const resp = await authRequest(`/api/conversations/${id}`, {
     method: 'PATCH',
@@ -193,6 +215,20 @@ export async function renameConversation(id: string, title: string): Promise<voi
     body: JSON.stringify({ title }),
   })
   if (!resp.ok) throw await errorOf(resp, '重命名失败')
+}
+
+/** 空会话改绑角色/模式（已开始聊天的会话后端会拒绝） */
+export async function patchConversationPersona(
+  id: string,
+  persona: string,
+  mode: 'advisor' | 'companion',
+): Promise<void> {
+  const resp = await authRequest(`/api/conversations/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ persona, mode }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '更换角色失败')
 }
 
 export async function deleteConversation(id: string): Promise<void> {
@@ -352,4 +388,64 @@ export async function listKnowledge(): Promise<KnowledgeDoc[]> {
 export async function deleteKnowledge(docId: string): Promise<void> {
   const resp = await authRequest(`/knowledge/${encodeURIComponent(docId)}`, { method: 'DELETE' })
   if (!resp.ok) throw await errorOf(resp, `删除失败: ${resp.status}`)
+}
+
+// ================= AI 朋友圈 =================
+
+export interface MomentComment {
+  id: number
+  role: 'user' | 'ai'
+  content: string
+}
+
+export interface Moment {
+  id: number
+  persona: string
+  content: string
+  liked: boolean
+  date: string
+  comments: MomentComment[]
+}
+
+export async function listMoments(persona: string): Promise<Moment[]> {
+  const resp = await authRequest(`/api/moments?persona=${encodeURIComponent(persona)}`)
+  if (!resp.ok) throw await errorOf(resp, '获取朋友圈失败')
+  return resp.json()
+}
+
+export async function toggleMomentLike(id: number): Promise<boolean> {
+  const resp = await authRequest(`/api/moments/${id}/like`, { method: 'POST' })
+  if (!resp.ok) throw await errorOf(resp, '点赞失败')
+  const data = await resp.json()
+  return !!data.liked
+}
+
+export async function commentMoment(id: number, content: string): Promise<MomentComment[]> {
+  const resp = await authRequest(`/api/moments/${id}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '评论失败')
+  const data = await resp.json()
+  return data.comments
+}
+
+// ================= 主动关怀 =================
+
+export interface CareMessage {
+  type: 'away' | 'morning' | 'night'
+  content: string
+}
+
+/** 无主动消息时返回 null */
+export async function fetchCarePending(persona: string): Promise<CareMessage | null> {
+  try {
+    const resp = await authRequest(`/api/care/pending?persona=${encodeURIComponent(persona)}`)
+    if (!resp.ok) return null
+    const data = await resp.json()
+    return data.type ? (data as CareMessage) : null
+  } catch {
+    return null
+  }
 }

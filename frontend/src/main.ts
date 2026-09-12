@@ -4,6 +4,7 @@ import './style.css'
 import App from './App.vue'
 import ChatView from './views/ChatView.vue'
 import KnowledgeView from './views/KnowledgeView.vue'
+import MomentsView from './views/MomentsView.vue'
 import YuManusView from './views/YuManusView.vue'
 import LoginView from './views/LoginView.vue'
 import { auth } from './stores/auth'
@@ -13,6 +14,7 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/', name: 'chat', component: ChatView },
+    { path: '/moments', name: 'moments', component: MomentsView },
     { path: '/knowledge', name: 'knowledge', component: KnowledgeView },
     { path: '/yumanus', name: 'yumanus', component: YuManusView },
     { path: '/login', name: 'login', component: LoginView },
