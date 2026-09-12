@@ -63,7 +63,12 @@
 5. **配置备份**：RDS 控制台开启自动备份（默认 7 天）；数据含用户情感记录，建议保留期 ≥ 30 天。
 6. **监控**：FC 控制台配置函数错误率/耗时告警；`/actuator/health` 接入可用性拨测。
 
-### AccessKey 轮换操作指引（2026-09-12 确认：当前是主账号 Key，只能在控制台轮换）
+### AccessKey 轮换操作指引（2026-09-12 确认：原部署 Key 是主账号 Key，只能在控制台轮换）
+
+> **轮换进度（2026-09-12）**：已创建 RAM 用户 `ailove`（方案 A）并生成新 AccessKey，
+> 本机 `s` 部署凭据已切换（GetCallerIdentity 确认 RAMUser + `s info` 读取三函数成功）。
+> **剩余动作**：主账号控制台禁用旧 Key `LTAI5t7...inqK`（观察 2-3 天后删除）。
+> 注意：RAM 用户 `ailove` 需保持 `AliyunFCFullAccess` + `AliyunContainerRegistryFullAccess` 授权。
 
 主账号 AccessKey 没有任何 API 可以创建/禁用，必须在控制台登录（密码 + 短信验证）后操作：
 
