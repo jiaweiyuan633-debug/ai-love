@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import com.ailove.auth.AuthContext;
 import com.ailove.chat.AutoTitleService;
 import com.ailove.chat.ConversationStore;
+import com.ailove.chat.MemoryService;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.vectorstore.QuestionAnswerAdvisor;
@@ -13,6 +14,8 @@ import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,16 +39,26 @@ public class LoveChatController {
     private final VectorStore vectorStore;
     private final ConversationStore conversationStore;
     private final AutoTitleService autoTitleService;
+    private final MemoryService memoryService;
+    private final String personaPrompt;
 
     public LoveChatController(ChatClient loveChatClient, ChatMemory chatMemory,
                               ObjectProvider<VectorStore> vectorStoreProvider,
                               ObjectProvider<ConversationStore> conversationStoreProvider,
-                              ObjectProvider<AutoTitleService> autoTitleProvider) {
+                              ObjectProvider<AutoTitleService> autoTitleProvider,
+                              ObjectProvider<MemoryService> memoryServiceProvider,
+                              @Value("classpath:prompts/love-master-system.st") Resource personaResource) {
         this.loveChatClient = loveChatClient;
         this.chatMemory = chatMemory;
         this.vectorStore = vectorStoreProvider.getIfAvailable();
         this.conversationStore = conversationStoreProvider.getIfAvailable();
         this.autoTitleService = autoTitleProvider.getIfAvailable();
+        this.memoryService = memoryServiceProvider.getIfAvailable();
+        try (var in = personaResource.getInputStream()) {
+            this.personaPrompt = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("无法读取恋爱大师人设提示词", e);
+        }
     }
 
     /** 同步对话（调试/脚本用），同样落库。 */
@@ -55,11 +68,13 @@ public class LoveChatController {
         Long userId = AuthContext.userId();
         ensureConversation(chatId, userId);
         String reply = loveChatClient.prompt()
+                .system(buildSystem(userId))
                 .user(message)
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, chatId))
                 .call()
                 .content();
         persistExchange(chatId, userId, message, reply);
+        extractMemory(userId, message, reply);
         return reply;
     }
 
@@ -96,7 +111,9 @@ public class LoveChatController {
         }
 
         StringBuilder reply = new StringBuilder();
-        ChatClient.ChatClientRequestSpec spec = loveChatClient.prompt().user(message);
+        ChatClient.ChatClientRequestSpec spec = loveChatClient.prompt()
+                .system(buildSystem(userId))
+                .user(message);
         if (model != null && !model.isBlank()) {
             spec = spec.options(OpenAiChatOptions.builder().model(model).build());
         }
@@ -116,6 +133,7 @@ public class LoveChatController {
                 .doFinally(signal -> {
                     String content = reply.toString();
                     persistExchange(chatId, userId, message, content.isEmpty() ? null : content);
+                    extractMemory(userId, message, content);
                     // 首轮问答结束后生成会话标题（一次会话只调度一次）
                     if (autoTitleService != null && conversationStore != null && userId != null
                             && !content.isEmpty() && titleScheduled.compareAndSet(false, true)) {
@@ -127,6 +145,23 @@ public class LoveChatController {
     private void ensureConversation(String chatId, Long userId) {
         if (conversationStore != null && userId != null) {
             conversationStore.ensureOwned(chatId, userId);
+        }
+    }
+
+    /** system prompt = 恋爱大师人设 + 用户长期记忆块（无记忆时只用人设）。 */
+    private String buildSystem(Long userId) {
+        if (memoryService == null || userId == null) {
+            return personaPrompt;
+        }
+        String memoryBlock = memoryService.memoryBlock(userId);
+        return memoryBlock.isEmpty() ? personaPrompt : personaPrompt + "\n\n" + memoryBlock;
+    }
+
+    /** 对话结束后异步提炼长期记忆（体验模式或内容为空时跳过）。 */
+    private void extractMemory(Long userId, String userMessage, String assistantReply) {
+        if (memoryService != null && userId != null
+                && assistantReply != null && !assistantReply.isEmpty()) {
+            memoryService.extractAsync(userId, userMessage, assistantReply);
         }
     }
 
