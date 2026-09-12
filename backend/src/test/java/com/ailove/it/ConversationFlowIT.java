@@ -10,9 +10,35 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 会话生命周期：角色/模式绑定、陪伴开场白落库、改绑保护、重命名与删除。
+ * 会话生命周期：角色/模式绑定、陪伴开场白落库、改绑保护、重命名与删除、AI 生成隐式标识。
  */
 class ConversationFlowIT extends BaseIT {
+
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.ailove.chat.ConversationStore conversationStore;
+
+    @Test
+    void 助手消息带AI生成标识_用户消息不带_导出含标识元数据() throws Exception {
+        String token = newUser();
+        var created = post("/api/conversations", Map.of("persona", "jiejie", "mode", "advisor"), token);
+        String convId = created.path("id").asText();
+
+        // 直接经仓储补一轮问答（模型调用已打桩，不触网）
+        conversationStore.addMessage(convId, "user", "帮我分析一下她的想法");
+        conversationStore.addMessage(convId, "assistant", "她的想法可以从三个角度看……");
+
+        var messages = get("/api/conversations/" + convId + "/messages", token);
+        assertEquals(2, messages.size());
+        assertEquals(false, messages.get(0).path("aiGenerated").asBoolean());
+        assertEquals(true, messages.get(1).path("aiGenerated").asBoolean());
+
+        // 导出文件携带隐式标识（头部队列元数据 + 助手消息逐条标注）
+        var export = raw("GET", "/api/conversations/" + convId + "/export", null, token);
+        assertEquals(200, export.getStatusCode().value());
+        String markdown = export.getBody();
+        assertTrue(markdown.contains("ai-generated: true"));
+        assertTrue(markdown.contains("内容由人工智能生成"));
+    }
 
     @Test
     void 陪伴会话创建_开场白落库_有消息后改绑被拒() throws Exception {

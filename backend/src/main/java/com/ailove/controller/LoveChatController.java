@@ -145,14 +145,18 @@ public class LoveChatController {
         }
 
         AtomicBoolean titleScheduled = new AtomicBoolean(false);
-        return spec.stream()
-                .content()
-                .doOnNext(reply::append)
-                .map(token -> ServerSentEvent.builder(token).build())
-                // AI 上游报错/审核拦截：发一条错误帧再正常收尾，前端不再永远停在“思考中”
-                .onErrorResume(e -> Flux.just(
-                        ServerSentEvent.builder("[ERROR] " + AiErrorMessages.friendly(e)).build()))
-                .concatWith(Flux.just(ServerSentEvent.builder("[DONE]").build()))
+        // AI 生成内容隐式标识帧（event: ai-meta，不带 data 行）：旧客户端解析不到 data 会自动忽略，
+        // 新前端据此把当条回复标记为 AI 生成（《人工智能生成合成内容标识办法》元数据级标识）
+        ServerSentEvent<String> aiMeta = ServerSentEvent.<String>builder().event("ai-meta").build();
+        return Flux.just(aiMeta)
+                .concatWith(spec.stream()
+                        .content()
+                        .doOnNext(reply::append)
+                        .map(token -> ServerSentEvent.builder(token).build())
+                        // AI 上游报错/审核拦截：发一条错误帧再正常收尾，前端不再永远停在“思考中”
+                        .onErrorResume(e -> Flux.just(
+                                ServerSentEvent.builder("[ERROR] " + AiErrorMessages.friendly(e)).build()))
+                        .concatWith(Flux.just(ServerSentEvent.builder("[DONE]").build())))
                 .doFinally(signal -> {
                     String content = reply.toString();
                     persistExchange(chatId, userId, message, content.isEmpty() ? null : content);

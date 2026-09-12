@@ -30,6 +30,8 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   rag?: boolean
+  /** AI 生成内容标识：流式回复由后端 ai-meta 帧点亮，历史消息随库标记 */
+  aiGenerated?: boolean
   ts?: number
 }
 
@@ -126,6 +128,7 @@ function pickPersona(p: Persona, mode: 'advisor' | 'companion') {
           role: m.role,
           content: m.content,
           rag: false,
+          aiGenerated: m.aiGenerated,
           ts: Date.parse(m.createdAt) || undefined,
         }))
       } else {
@@ -200,6 +203,7 @@ async function loadHistory(id: string) {
         role: m.role,
         content: m.content,
         rag: false,
+        aiGenerated: m.aiGenerated,
         ts: Date.parse(m.createdAt) || undefined,
       }))
       followUps.value = []
@@ -330,7 +334,7 @@ async function streamSend(raw: string, regenerate: boolean, isRetry = false) {
   }
   input.value = ''
   // 通过响应式数组索引写入，保证每个 token 都触发界面更新（流式逐字渲染）
-  messages.value.push({ role: 'assistant', content: '', rag: ragEnabled.value, ts: Date.now() })
+  messages.value.push({ role: 'assistant', content: '', rag: ragEnabled.value, aiGenerated: true, ts: Date.now() })
   const replyIndex = messages.value.length - 1
   void scrollToBottom()
   streaming.value = true
@@ -390,6 +394,11 @@ async function streamSend(raw: string, regenerate: boolean, isRetry = false) {
         return
       }
       error.value = text
+    },
+    () => {
+      // 后端 ai-meta 事件帧：确认本条回复为 AI 生成（隐式标识元数据）
+      const reply = messages.value[replyIndex]
+      if (reply) reply.aiGenerated = true
     },
   )
 }
@@ -609,6 +618,7 @@ function resetSession() {
           ></div>
           <div class="msg-meta">
             <span v-if="m.ts" class="msg-time">{{ fmtTs(m.ts) }}</span>
+            <span v-if="m.role === 'assistant' && m.aiGenerated" class="ai-badge">AI 生成</span>
             <span v-if="m.role === 'assistant' && m.rag" class="rag-badge">📚 知识库</span>
           </div>
           <div
@@ -1246,6 +1256,16 @@ function resetSession() {
   color: var(--a2);
   background: rgba(167, 107, 255, 0.15);
   border: 1px solid rgba(167, 107, 255, 0.4);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+/* AI 生成内容标识角标（显式标识，由消息元数据驱动） */
+.ai-badge {
+  font-size: 11px;
+  color: var(--muted, #8a8f9d);
+  background: rgba(128, 136, 155, 0.14);
+  border: 1px solid rgba(128, 136, 155, 0.35);
   border-radius: 999px;
   padding: 2px 8px;
   white-space: nowrap;

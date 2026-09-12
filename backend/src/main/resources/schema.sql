@@ -41,9 +41,12 @@ CREATE TABLE IF NOT EXISTS messages (
     conversation_id VARCHAR(48) NOT NULL,
     role            VARCHAR(16) NOT NULL, -- user / assistant
     content         TEXT        NOT NULL,
+    -- AI 生成内容隐式标识（《人工智能生成合成内容标识办法》：元数据级标识随内容存储/导出）
+    ai_generated    BOOLEAN     NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id, id);
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS ai_generated BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS user_memories (
     id         BIGSERIAL PRIMARY KEY,

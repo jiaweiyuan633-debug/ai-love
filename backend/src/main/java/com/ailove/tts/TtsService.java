@@ -21,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * 高拟真人设语音合成（阿里云 DashScope CosyVoice）。
  * 音色跟随 PersonaCatalog 的 6 个统一角色；结果按 (人设+文本) 做内存 LRU 缓存，重复朗读零成本。
+ * 下发音频均写入 AI 生成隐式标识（ID3 元数据，见 {@link AiAudioLabel}）。
  */
 @Service
 public class TtsService {
@@ -67,10 +68,12 @@ public class TtsService {
             }
         }
         byte[] audio = callCosyVoice(persona, trimmed, rate);
+        // 写入 AI 生成隐式标识（ID3 元数据）后再缓存，标识随音频文件持续存在
+        byte[] labeled = AiAudioLabel.tagMp3(audio);
         synchronized (cache) {
-            cache.put(cacheKey, audio);
+            cache.put(cacheKey, labeled);
         }
-        return audio;
+        return labeled;
     }
 
     private byte[] callCosyVoice(PersonaCatalog.Persona persona, String text, double rate) {

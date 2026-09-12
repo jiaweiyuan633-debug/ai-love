@@ -122,11 +122,18 @@ public class ConversationController {
         StringBuilder sb = new StringBuilder();
         sb.append("# ").append(conversation.title()).append("\n\n")
                 .append("> 导出自 AI 恋爱大师 · ").append(LocalDate.now())
-                .append(" · 共 ").append(messages.size()).append(" 条消息\n\n---\n\n");
+                .append(" · 共 ").append(messages.size()).append(" 条消息")
+                // AI 生成内容隐式标识随导出文件携带（《人工智能生成合成内容标识办法》）
+                .append(" · ai-generated: ").append(messages.stream().anyMatch(ConversationStore.StoredMessage::aiGenerated))
+                .append("\n\n---\n\n");
         for (ConversationStore.StoredMessage m : messages) {
             sb.append("**").append("user".equals(m.role()) ? "我" : "恋爱大师").append("**（")
                     .append(fmt.format(m.createdAt())).append("）：\n\n")
-                    .append(m.content()).append("\n\n---\n\n");
+                    .append(m.content());
+            if (m.aiGenerated()) {
+                sb.append("\n\n*(内容由人工智能生成)*");
+            }
+            sb.append("\n\n---\n\n");
         }
         String filename = UriUtils.encode(conversation.title() + ".md", StandardCharsets.UTF_8);
         return ResponseEntity.ok()

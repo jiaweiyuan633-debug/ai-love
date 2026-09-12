@@ -21,7 +21,12 @@ public class ConversationStore {
                                Instant updatedAt, int messageCount) {
     }
 
-    public record StoredMessage(long id, String role, String content, Instant createdAt) {
+    /**
+     * 落库消息。aiGenerated 为 AI 生成内容隐式标识（《人工智能生成合成内容标识办法》），
+     * 随消息存储并透传到历史查询与 Markdown 导出。
+     */
+    public record StoredMessage(long id, String role, String content, boolean aiGenerated,
+                                Instant createdAt) {
     }
 
     /** 消息全文检索命中项 */
@@ -129,19 +134,22 @@ public class ConversationStore {
 
     public List<StoredMessage> listMessages(String conversationId) {
         return jdbc.sql(
-                "SELECT id, role, content, created_at FROM messages WHERE conversation_id = ? ORDER BY id")
+                "SELECT id, role, content, ai_generated, created_at FROM messages WHERE conversation_id = ? ORDER BY id")
                 .param(conversationId)
                 .query((rs, i) -> new StoredMessage(
                         rs.getLong("id"), rs.getString("role"), rs.getString("content"),
+                        rs.getBoolean("ai_generated"),
                         rs.getTimestamp("created_at").toInstant()))
                 .list();
     }
 
     public void addMessage(String conversationId, String role, String content) {
-        jdbc.sql("INSERT INTO messages (conversation_id, role, content) VALUES (?, ?, ?)")
+        // assistant 角色即模型生成内容：落库时写入隐式标识
+        jdbc.sql("INSERT INTO messages (conversation_id, role, content, ai_generated) VALUES (?, ?, ?, ?)")
                 .param(conversationId)
                 .param(role)
                 .param(content)
+                .param("assistant".equals(role))
                 .update();
         jdbc.sql("UPDATE conversations SET updated_at = now() WHERE id = ?")
                 .param(conversationId)

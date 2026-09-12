@@ -35,12 +35,13 @@ public class TtsController {
         return ttsService.personaViews();
     }
 
-    /** 合成一段文本的语音，返回 mp3。 */
+    /** 合成一段文本的语音，返回 mp3（字节内含 AI 生成隐式标识，响应头同时声明）。 */
     @PostMapping
     public ResponseEntity<byte[]> tts(@RequestBody TtsRequest request) {
         byte[] audio = ttsService.synthesize(request.persona(), request.text(), request.rate());
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("audio/mpeg"))
+                .header("X-AI-Generated-Content", "true")
                 .cacheControl(CacheControl.noStore())
                 .body(audio);
     }

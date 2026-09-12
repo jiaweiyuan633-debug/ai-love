@@ -173,6 +173,7 @@ export function openSseStream(
   onData: (text: string) => void,
   onDone?: () => void,
   onError?: (message: string) => void,
+  onMeta?: () => void,
 ): () => void {
   const controller = new AbortController()
   let finished = false
@@ -215,11 +216,14 @@ export function openSseStream(
         while ((sep = buffer.indexOf('\n\n')) >= 0) {
           const raw = buffer.slice(0, sep)
           buffer = buffer.slice(sep + 2)
-          const data = raw
-            .split('\n')
+          const lines = raw.split('\n')
+          const data = lines
             .filter((l) => l.startsWith('data:'))
             .map((l) => (l.startsWith('data: ') ? l.slice(6) : l.slice(5)))
             .join('\n')
+          // 事件帧（后端 ai-meta：AI 生成内容隐式标识，无 data 行）——旧版本前端解析不到 data 会自然忽略
+          const evt = lines.find((l) => l.startsWith('event:'))?.slice(6)?.trim()
+          if (evt === 'ai-meta') onMeta?.()
           if (!data) continue
           if (data === '[DONE]') {
             finish(onDone)
@@ -292,6 +296,8 @@ export interface StoredMessage {
   id: number
   role: 'user' | 'assistant'
   content: string
+  /** AI 生成内容隐式标识（《人工智能生成合成内容标识办法》），随消息存储与导出 */
+  aiGenerated?: boolean
   createdAt: string
 }
 

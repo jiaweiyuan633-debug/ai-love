@@ -142,6 +142,22 @@ describe('openSseStream', () => {
     expect(onData).toHaveBeenCalledWith('line1\nline2')
   })
 
+  it('ai-meta 事件帧触发 onMeta 且不混入正文（AI 生成隐式标识）', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(fakeResponse(['event: ai-meta\n\n', 'data: 你好\n\ndata: [DONE]\n\n'])),
+    )
+    const onData = vi.fn()
+    const onMeta = vi.fn()
+    const onError = vi.fn()
+    openSseStream('/ai/x', onData, undefined, onError, onMeta)
+    await vi.waitFor(() => expect(onData).toHaveBeenCalled())
+    expect(onMeta).toHaveBeenCalledTimes(1)
+    expect(onData).toHaveBeenCalledTimes(1)
+    expect(onData).toHaveBeenCalledWith('你好')
+    expect(onError).not.toHaveBeenCalled()
+  })
+
   it('[ERROR] 帧触发 onError 且不再推送正文', async () => {
     vi.stubGlobal(
       'fetch',
