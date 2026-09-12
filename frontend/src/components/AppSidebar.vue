@@ -11,6 +11,7 @@ import {
   setActive,
 } from '../stores/conversations'
 import { auth, clearSession } from '../stores/auth'
+import { ui } from '../stores/ui'
 import type { Conversation } from '../api'
 
 const route = useRoute()
@@ -149,6 +150,7 @@ function fmtTime(iso: string): string {
       <template v-if="auth.user">
         <div class="avatar">{{ auth.user.nickname.slice(0, 1) }}</div>
         <span class="nickname" :title="auth.user.username">{{ auth.user.nickname }}</span>
+        <button class="icon-btn" title="设置" @click="ui.settingsOpen = true">⚙️</button>
         <button class="icon-btn" title="退出登录" @click="logout">⏻</button>
       </template>
       <template v-else>
@@ -164,8 +166,8 @@ function fmtTime(iso: string): string {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #17172a;
-  border-right: 1px solid #2b2b3a;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
   padding: 14px 12px;
   gap: 12px;
   overflow: hidden;
@@ -173,7 +175,7 @@ function fmtTime(iso: string): string {
 .brand {
   font-size: 16px;
   font-weight: 700;
-  color: #f4f4fa;
+  color: var(--text);
   padding: 2px 6px;
 }
 .nav {
@@ -187,23 +189,23 @@ function fmtTime(iso: string): string {
   gap: 8px;
   padding: 8px 10px;
   border-radius: 10px;
-  color: #b6b6cc;
+  color: var(--text-3);
   text-decoration: none;
   font-size: 14px;
   transition: all 0.15s;
 }
 .nav-link:hover {
   color: #fff;
-  background: #2b2b45;
+  background: var(--hover);
 }
 .nav-link.active {
   color: #fff;
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
 }
 .new-conv {
-  border: 1px dashed #3a3a55;
+  border: 1px dashed var(--border-strong);
   background: transparent;
-  color: #c8c8e0;
+  color: var(--text-2);
   border-radius: 10px;
   padding: 9px 0;
   font-size: 13px;
@@ -211,7 +213,7 @@ function fmtTime(iso: string): string {
   transition: all 0.15s;
 }
 .new-conv:hover {
-  border-color: #ff6b9d;
+  border-color: var(--a1);
   color: #fff;
 }
 .conv-section {
@@ -222,7 +224,7 @@ function fmtTime(iso: string): string {
 }
 .section-label {
   font-size: 11px;
-  color: #8888a6;
+  color: var(--text-4);
   padding: 0 6px 6px;
   letter-spacing: 1px;
 }
@@ -238,15 +240,15 @@ function fmtTime(iso: string): string {
   padding: 8px 10px;
   border-radius: 10px;
   cursor: pointer;
-  color: #c8c8e0;
+  color: var(--text-2);
   font-size: 13px;
   transition: background 0.15s;
 }
 .conv-item:hover {
-  background: #22223a;
+  background: var(--hover);
 }
 .conv-item.active {
-  background: #2b2b45;
+  background: var(--hover);
   color: #fff;
 }
 .conv-title {
@@ -259,7 +261,7 @@ function fmtTime(iso: string): string {
 .conv-time {
   display: block;
   font-size: 11px;
-  color: #6a6a88;
+  color: var(--text-5);
   margin-top: 2px;
 }
 .conv-actions {
@@ -281,12 +283,12 @@ function fmtTime(iso: string): string {
   border-radius: 4px;
 }
 .conv-actions button:hover {
-  background: #3a3a55;
+  background: var(--border-strong);
 }
 .rename-input {
   width: 100%;
-  background: #101020;
-  border: 1px solid #a76bff;
+  background: var(--bg);
+  border: 1px solid var(--a2);
   border-radius: 6px;
   color: #fff;
   font-size: 13px;
@@ -294,7 +296,7 @@ function fmtTime(iso: string): string {
   outline: none;
 }
 .empty-tip {
-  color: #6a6a88;
+  color: var(--text-5);
   font-size: 12px;
   padding: 8px 6px;
   line-height: 1.6;
@@ -305,10 +307,10 @@ function fmtTime(iso: string): string {
   align-items: center;
   justify-content: center;
   text-align: center;
-  color: #6a6a88;
+  color: var(--text-5);
   font-size: 12px;
   line-height: 1.8;
-  border: 1px dashed #2b2b45;
+  border: 1px dashed var(--hover);
   border-radius: 10px;
   padding: 12px;
 }
@@ -316,14 +318,14 @@ function fmtTime(iso: string): string {
   display: flex;
   align-items: center;
   gap: 8px;
-  border-top: 1px solid #2b2b3a;
+  border-top: 1px solid var(--border);
   padding-top: 12px;
 }
 .avatar {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
   color: #fff;
   display: flex;
   align-items: center;
@@ -334,7 +336,7 @@ function fmtTime(iso: string): string {
 .nickname {
   flex: 1;
   font-size: 13px;
-  color: #e6e6f2;
+  color: var(--text-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -342,18 +344,18 @@ function fmtTime(iso: string): string {
 .icon-btn {
   border: none;
   background: transparent;
-  color: #8888a6;
+  color: var(--text-4);
   cursor: pointer;
   font-size: 15px;
   padding: 4px;
   border-radius: 6px;
 }
 .icon-btn:hover {
-  color: #ff9db4;
-  background: #2b2b45;
+  color: var(--danger-text);
+  background: var(--hover);
 }
 .guest-label {
-  color: #6a6a88;
+  color: var(--text-5);
   font-size: 12px;
 }
 </style>

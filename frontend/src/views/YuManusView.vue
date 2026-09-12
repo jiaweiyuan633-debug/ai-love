@@ -101,15 +101,15 @@ function stop() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  color: #c8c8e0;
+  color: var(--text-2);
 }
 .header h1 {
-  color: #f0f0fa;
+  color: var(--text);
   font-size: 22px;
 }
 .desc {
   font-size: 13px;
-  color: #8888a6;
+  color: var(--text-4);
 }
 .input-bar {
   display: flex;
@@ -118,16 +118,16 @@ function stop() {
 }
 .input-bar input {
   flex: 1;
-  background: #1a1a2e;
-  border: 1px solid #34345a;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
-  color: #f0f0fa;
+  color: var(--text);
   padding: 10px 14px;
   font-size: 14px;
   outline: none;
 }
 .input-bar input:focus {
-  border-color: #a76bff;
+  border-color: var(--a2);
 }
 .run-btn,
 .stop-btn {
@@ -139,15 +139,15 @@ function stop() {
   color: #fff;
 }
 .run-btn {
-  background: linear-gradient(135deg, #6b9dff, #a76bff);
+  background: linear-gradient(135deg, #6b9dff, var(--a2));
 }
 .run-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .stop-btn {
-  background: #4a1f2e;
-  color: #ff9db4;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 .example-row {
   display: flex;
@@ -156,16 +156,16 @@ function stop() {
   margin-top: 12px;
 }
 .example {
-  background: #1e1e33;
-  border: 1px solid #34345a;
-  color: #c8c8e0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
   border-radius: 12px;
   padding: 6px 12px;
   font-size: 12px;
   cursor: pointer;
 }
 .example:hover {
-  border-color: #a76bff;
+  border-color: var(--a2);
   color: #fff;
 }
 .example:disabled {
@@ -173,8 +173,8 @@ function stop() {
   cursor: not-allowed;
 }
 .error-bar {
-  background: #4a1f2e;
-  color: #ff9db4;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   padding: 8px 14px;
   border-radius: 8px;
   font-size: 13px;
@@ -184,8 +184,8 @@ function stop() {
   flex: 1;
   overflow-y: auto;
   margin-top: 16px;
-  background: #141426;
-  border: 1px solid #2b2b3a;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 14px;
   padding: 16px;
 }
@@ -196,11 +196,11 @@ function stop() {
   font-family: 'Cascadia Code', Consolas, monospace;
   font-size: 13px;
   line-height: 1.7;
-  color: #d6d6ea;
+  color: var(--text-2);
 }
 .placeholder {
   text-align: center;
-  color: #6a6a88;
+  color: var(--text-5);
   margin-top: 60px;
 }
 </style>

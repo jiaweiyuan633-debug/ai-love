@@ -93,14 +93,14 @@ function switchMode() {
   background:
     radial-gradient(800px 400px at 20% 0%, rgba(255, 107, 157, 0.18), transparent),
     radial-gradient(800px 500px at 90% 100%, rgba(167, 107, 255, 0.2), transparent),
-    #101020;
+    var(--bg);
   padding: 24px;
 }
 .login-card {
   width: 400px;
   max-width: 100%;
-  background: #17172a;
-  border: 1px solid #2b2b3a;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
   border-radius: 20px;
   padding: 36px 32px 24px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
@@ -116,16 +116,16 @@ function switchMode() {
 .brand h1 {
   margin: 8px 0 4px;
   font-size: 22px;
-  color: #f4f4fa;
+  color: var(--text);
 }
 .slogan {
   margin: 0;
   font-size: 13px;
-  color: #8888a6;
+  color: var(--text-4);
 }
 .mode-tabs {
   display: flex;
-  background: #101020;
+  background: var(--bg);
   border-radius: 12px;
   padding: 4px;
   margin-bottom: 20px;
@@ -134,14 +134,14 @@ function switchMode() {
   flex: 1;
   border: none;
   background: transparent;
-  color: #8888a6;
+  color: var(--text-4);
   padding: 8px 0;
   border-radius: 9px;
   cursor: pointer;
   font-size: 14px;
 }
 .mode-tabs button.active {
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
   color: #fff;
   font-weight: 600;
 }
@@ -152,24 +152,24 @@ function switchMode() {
 .field span {
   display: block;
   font-size: 13px;
-  color: #b6b6cc;
+  color: var(--text-3);
   margin-bottom: 6px;
 }
 .field input {
   width: 100%;
-  background: #101020;
-  border: 1px solid #34345a;
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
   border-radius: 10px;
-  color: #f0f0fa;
+  color: var(--text);
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
 }
 .field input:focus {
-  border-color: #a76bff;
+  border-color: var(--a2);
 }
 .error {
-  color: #ff9db4;
+  color: var(--danger-text);
   font-size: 13px;
   margin: 4px 0 8px;
 }
@@ -181,7 +181,7 @@ function switchMode() {
   font-size: 15px;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
   cursor: pointer;
   margin-top: 6px;
 }
@@ -192,11 +192,11 @@ function switchMode() {
 .tip {
   text-align: center;
   font-size: 13px;
-  color: #8888a6;
+  color: var(--text-4);
   margin: 16px 0 0;
 }
 .tip a {
-  color: #ff9db4;
+  color: var(--danger-text);
   cursor: pointer;
 }
 </style>

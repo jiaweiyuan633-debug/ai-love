@@ -1,0 +1,499 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { settings } from '../stores/settings'
+import { ui } from '../stores/ui'
+import { auth, clearSession } from '../stores/auth'
+import { deleteMemoryItem, listMemory, patchMe, clearMemory, type MemoryItem } from '../api'
+import { zhVoices } from '../composables/useSpeech'
+
+const router = useRouter()
+const emit = defineEmits<{ close: [] }>()
+
+const tab = ref<'appearance' | 'voice' | 'ball' | 'account'>('appearance')
+
+const themes = [
+  { value: 'light', label: '☀️ 浅色' },
+  { value: 'dark', label: '🌙 深色' },
+  { value: 'auto', label: '🖥️ 跟随系统' },
+] as const
+
+const accents = [
+  { value: 'rose', label: '玫瑰粉', color: '#ff6b9d' },
+  { value: 'ocean', label: '海洋蓝', color: '#4e8cff' },
+  { value: 'mint', label: '薄荷绿', color: '#22b8a0' },
+  { value: 'sunset', label: '日落橙', color: '#ff8a5c' },
+  { value: 'violet', label: '星空紫', color: '#8a5cff' },
+]
+
+const models = [
+  { value: 'qwen-plus', label: '均衡 · qwen-plus' },
+  { value: 'qwen-turbo', label: '极速 · qwen-turbo' },
+  { value: 'qwen-max', label: '最强 · qwen-max' },
+] as const
+
+const voices = ref<SpeechSynthesisVoice[]>([])
+onMounted(() => {
+  voices.value = zhVoices()
+  void refreshMemory()
+})
+
+// ---------- 记忆 ----------
+const memoryItems = ref<MemoryItem[]>([])
+const memoryLoading = ref(false)
+
+async function refreshMemory() {
+  if (!auth.user) return
+  memoryLoading.value = true
+  try {
+    const data = await listMemory()
+    memoryItems.value = data.items
+  } catch {
+    // 静默
+  } finally {
+    memoryLoading.value = false
+  }
+}
+
+async function removeMemory(id: number) {
+  try {
+    await deleteMemoryItem(id)
+    memoryItems.value = memoryItems.value.filter((m) => m.id !== id)
+  } catch {
+    // 静默
+  }
+}
+
+async function removeAllMemory() {
+  if (!window.confirm('确定清空全部长期记忆吗？')) return
+  try {
+    await clearMemory()
+    memoryItems.value = []
+  } catch {
+    // 静默
+  }
+}
+
+async function toggleMemoryEnabled() {
+  if (!auth.user) return
+  try {
+    auth.user = await patchMe({ memoryEnabled: !auth.user.memoryEnabled })
+  } catch {
+    // 静默
+  }
+}
+
+// ---------- 账号 ----------
+const nicknameInput = ref(auth.user?.nickname || '')
+const nicknameSaved = ref(false)
+async function saveNickname() {
+  const nickname = nicknameInput.value.trim()
+  if (!nickname || !auth.user) return
+  try {
+    auth.user = await patchMe({ nickname })
+    nicknameSaved.value = true
+    setTimeout(() => (nicknameSaved.value = false), 1500)
+  } catch {
+    // 静默
+  }
+}
+
+function logout() {
+  clearSession()
+  ui.settingsOpen = false
+  router.replace('/login')
+}
+
+const isGuest = computed(() => !auth.user)
+</script>
+
+<template>
+  <Teleport to="body">
+    <div class="overlay" @click.self="emit('close')">
+      <div class="modal">
+        <header>
+          <h2>⚙️ 设置</h2>
+          <button class="close" @click="emit('close')">✕</button>
+        </header>
+
+        <nav class="tabs">
+          <button :class="{ active: tab === 'appearance' }" @click="tab = 'appearance'">🎨 外观</button>
+          <button :class="{ active: tab === 'voice' }" @click="tab = 'voice'">🔊 语音</button>
+          <button :class="{ active: tab === 'ball' }" @click="tab = 'ball'">🫧 悬浮窗</button>
+          <button :class="{ active: tab === 'account' }" @click="tab = 'account'">👤 记忆与账号</button>
+        </nav>
+
+        <div class="body">
+          <!-- 外观 -->
+          <section v-if="tab === 'appearance'" class="section">
+            <div class="row-title">主题模式</div>
+            <div class="segment">
+              <button
+                v-for="t in themes"
+                :key="t.value"
+                :class="{ active: settings.theme === t.value }"
+                @click="settings.theme = t.value"
+              >
+                {{ t.label }}
+              </button>
+            </div>
+
+            <div class="row-title">主题色</div>
+            <div class="accent-row">
+              <button
+                v-for="a in accents"
+                :key="a.value"
+                class="accent-dot"
+                :style="{ background: `linear-gradient(135deg, ${a.color}, ${a.color}bb)` }"
+                :class="{ active: settings.accent === a.value }"
+                :title="a.label"
+                @click="settings.accent = a.value"
+              ></button>
+            </div>
+
+            <div class="row-title">对话模型</div>
+            <select v-model="settings.model" class="select">
+              <option v-for="m in models" :key="m.value" :value="m.value">{{ m.label }}</option>
+            </select>
+            <p class="hint">极速响应快、适合日常闲聊；最强回答质量高但稍慢、消耗更多额度。</p>
+          </section>
+
+          <!-- 语音 -->
+          <section v-if="tab === 'voice'" class="section">
+            <label class="switch-row">
+              <div>
+                <div class="row-title">语音朗读</div>
+                <p class="hint">开启后工具栏出现语音开关，可自动朗读 AI 回复</p>
+              </div>
+              <span class="switch" :class="{ on: settings.voiceEnabled }" @click="settings.voiceEnabled = !settings.voiceEnabled">
+                <span class="knob"></span>
+              </span>
+            </label>
+
+            <label class="switch-row">
+              <div>
+                <div class="row-title">自动朗读新回答</div>
+                <p class="hint">关闭后仍可点消息下方的「🔊 朗读」手动播放</p>
+              </div>
+              <span class="switch" :class="{ on: settings.autoRead }" @click="settings.autoRead = !settings.autoRead">
+                <span class="knob"></span>
+              </span>
+            </label>
+
+            <div class="row-title">音色</div>
+            <select v-model="settings.voiceURI" class="select">
+              <option value="">默认（跟随浏览器）</option>
+              <option v-for="v in voices" :key="v.voiceURI" :value="v.voiceURI">
+                {{ v.name }}（{{ v.lang }}）
+              </option>
+            </select>
+
+            <div class="row-title">语速（{{ settings.voiceRate.toFixed(2) }}x）</div>
+            <input v-model.number="settings.voiceRate" type="range" min="0.5" max="2" step="0.25" class="range" />
+          </section>
+
+          <!-- 悬浮窗 -->
+          <section v-if="tab === 'ball'" class="section">
+            <label class="switch-row">
+              <div>
+                <div class="row-title">显示悬浮球</div>
+                <p class="hint">可拖动的💘悬浮球，点击展开快捷操作（新对话 / 朗读 / 设置）</p>
+              </div>
+              <span class="switch" :class="{ on: settings.floatBall }" @click="settings.floatBall = !settings.floatBall">
+                <span class="knob"></span>
+              </span>
+            </label>
+          </section>
+
+          <!-- 记忆与账号 -->
+          <section v-if="tab === 'account'" class="section">
+            <template v-if="!isGuest">
+              <label class="switch-row">
+                <div>
+                  <div class="row-title">长期记忆</div>
+                  <p class="hint">开启后 AI 会自动记住你的喜好与重要信息，并在对话中运用</p>
+                </div>
+                <span
+                  class="switch"
+                  :class="{ on: auth.user?.memoryEnabled }"
+                  @click="toggleMemoryEnabled"
+                >
+                  <span class="knob"></span>
+                </span>
+              </label>
+
+              <div class="row-title">
+                TA 记住了什么（{{ memoryItems.length }} 条）
+                <button v-if="memoryItems.length" class="link-danger" @click="removeAllMemory">清空</button>
+              </div>
+              <div class="memory-list">
+                <div v-if="memoryLoading" class="hint">加载中…</div>
+                <div v-else-if="memoryItems.length === 0" class="hint">还没有记忆。多聊聊，AI 会自动记住关键信息。</div>
+                <div v-for="m in memoryItems" :key="m.id" class="memory-item">
+                  <span>{{ m.content }}</span>
+                  <button title="删除" @click="removeMemory(m.id)">🗑️</button>
+                </div>
+              </div>
+
+              <div class="row-title">昵称</div>
+              <div class="nickname-row">
+                <input v-model="nicknameInput" class="select" maxlength="32" />
+                <button class="mini-btn" @click="saveNickname">{{ nicknameSaved ? '✅ 已保存' : '保存' }}</button>
+              </div>
+
+              <button class="danger-btn" @click="logout">⏻ 退出登录</button>
+            </template>
+            <div v-else class="hint">体验模式下暂无账号与记忆功能。</div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<style scoped>
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.modal {
+  width: 460px;
+  max-width: 100%;
+  max-height: 86vh;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 10px;
+}
+header h2 {
+  margin: 0;
+  font-size: 17px;
+  color: var(--text);
+}
+.close {
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.close:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+.tabs button {
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+}
+.tabs button.active {
+  color: var(--a1);
+  border-bottom-color: var(--a1);
+}
+.body {
+  padding: 18px 20px 22px;
+  overflow-y: auto;
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.row-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 12px;
+}
+.row-title:first-child {
+  margin-top: 0;
+}
+.hint {
+  font-size: 12px;
+  color: var(--text-5);
+  margin: 2px 0 8px;
+  line-height: 1.6;
+}
+.segment {
+  display: flex;
+  background: var(--bg-input);
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+}
+.segment button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-4);
+  padding: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.segment button.active {
+  background: var(--accent-grad);
+  color: #fff;
+  font-weight: 600;
+}
+.accent-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0 2px;
+}
+.accent-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+.accent-dot.active {
+  outline-color: var(--text-3);
+}
+.select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 9px 12px;
+  font-size: 13px;
+  outline: none;
+}
+.range {
+  width: 100%;
+  accent-color: var(--a1);
+}
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+}
+.switch {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--hover);
+  border: 1px solid var(--border-strong);
+  position: relative;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.switch .knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-4);
+  transition: all 0.2s;
+}
+.switch.on {
+  background: var(--accent-grad);
+  border-color: transparent;
+}
+.switch.on .knob {
+  left: 20px;
+  background: #fff;
+}
+.memory-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.memory-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.memory-item button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.7;
+}
+.memory-item button:hover {
+  opacity: 1;
+}
+.nickname-row {
+  display: flex;
+  gap: 8px;
+}
+.mini-btn {
+  border: none;
+  background: var(--accent-grad);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0 18px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.link-danger {
+  border: none;
+  background: transparent;
+  color: var(--danger-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+.danger-btn {
+  margin-top: 18px;
+  border: 1px solid var(--danger-text);
+  background: transparent;
+  color: var(--danger-text);
+  border-radius: 10px;
+  padding: 10px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.danger-btn:hover {
+  background: var(--danger-bg);
+}
+</style>

@@ -116,21 +116,21 @@ onMounted(refresh)
   max-width: 860px;
   margin: 0 auto;
   padding: 28px 20px;
-  color: #c8c8e0;
+  color: var(--text-2);
   overflow-y: auto;
   height: 100%;
 }
 h1 {
-  color: #f0f0fa;
+  color: var(--text);
   font-size: 22px;
 }
 .desc {
   font-size: 13px;
-  color: #8888a6;
+  color: var(--text-4);
 }
 .upload-zone {
   margin: 18px 0;
-  border: 2px dashed #3a3a5c;
+  border: 2px dashed var(--border-strong);
   border-radius: 16px;
   padding: 40px;
   text-align: center;
@@ -139,25 +139,25 @@ h1 {
 }
 .upload-zone:hover,
 .upload-zone.uploading {
-  border-color: #a76bff;
-  background: #191930;
+  border-color: var(--a2);
+  background: var(--bg-card);
 }
 .zone-icon {
   font-size: 32px;
   margin-bottom: 8px;
 }
 .zone-text {
-  color: #b6b6cc;
+  color: var(--text-3);
   font-size: 15px;
 }
 .zone-hint {
   margin-top: 6px;
   font-size: 12px;
-  color: #6a6a88;
+  color: var(--text-5);
 }
 .error-bar {
-  background: #4a1f2e;
-  color: #ff9db4;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   padding: 8px 14px;
   border-radius: 8px;
   font-size: 13px;
@@ -165,7 +165,7 @@ h1 {
 }
 h2 {
   font-size: 16px;
-  color: #f0f0fa;
+  color: var(--text);
   margin-top: 24px;
 }
 .doc-table {
@@ -178,30 +178,30 @@ h2 {
 .doc-table td {
   text-align: left;
   padding: 10px 12px;
-  border-bottom: 1px solid #2b2b3a;
+  border-bottom: 1px solid var(--border);
 }
 .doc-table th {
-  color: #8888a6;
+  color: var(--text-4);
   font-weight: 500;
 }
 .mono {
   font-family: monospace;
-  color: #8888a6;
+  color: var(--text-4);
 }
 .del-btn {
   background: none;
-  border: 1px solid #4a1f2e;
-  color: #ff9db4;
+  border: 1px solid var(--danger-bg);
+  color: var(--danger-text);
   border-radius: 6px;
   padding: 3px 10px;
   cursor: pointer;
   font-size: 12px;
 }
 .del-btn:hover {
-  background: #4a1f2e;
+  background: var(--danger-bg);
 }
 .empty {
-  color: #6a6a88;
+  color: var(--text-5);
   font-size: 13px;
 }
 </style>

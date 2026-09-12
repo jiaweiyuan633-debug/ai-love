@@ -2,6 +2,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { listMessages, openSseStream, type StoredMessage } from '../api'
 import { conversations, ensureActiveConversation, persistenceEnabled, refreshList } from '../stores/conversations'
+import { settings } from '../stores/settings'
+import { feedSpeech, finishSpeech, speakFull, speaking, stopSpeech } from '../composables/useSpeech'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -108,11 +110,13 @@ async function streamSend(raw: string, regenerate: boolean) {
     `${endpoint}?${params.toString()}`,
     (token) => {
       messages.value[replyIndex].content += token
+      feedSpeech(token)
       void scrollToBottom()
     },
     () => {
       streaming.value = false
       closeStream = null
+      finishSpeech()
       if (!messages.value[replyIndex].content) {
         messages.value[replyIndex].content = '（没有收到回复，请重试）'
         error.value = '没有收到回复，请确认后端已启动并配置了 DASHSCOPE_API_KEY'
@@ -139,9 +143,15 @@ function stopStreamInternal() {
 
 function stop() {
   stopStreamInternal()
+  stopSpeech()
   streaming.value = false
   const last = messages.value[messages.value.length - 1]
   if (last?.role === 'assistant' && !last.content) last.content = '（已停止生成）'
+}
+
+function toggleVoice() {
+  settings.voiceEnabled = !settings.voiceEnabled
+  if (!settings.voiceEnabled) stopSpeech()
 }
 
 /** 重新生成：丢弃最后一条回复，服务端会先删除库中最后一轮问答再重新作答 */
@@ -184,7 +194,17 @@ function resetSession() {
     <div class="toolbar">
       <span class="conv-title">{{ currentTitle }}</span>
       <span v-if="!persistenceEnabled()" class="guest-badge">体验模式 · 历史不保存</span>
-      <button v-if="!persistenceEnabled()" class="ghost-btn" @click="resetSession">新建会话</button>
+      <div class="toolbar-right">
+        <button
+          class="voice-btn"
+          :class="{ on: settings.voiceEnabled, speaking }"
+          :title="settings.voiceEnabled ? '关闭语音朗读' : '开启语音朗读（AI 会自动读出回答）'"
+          @click="toggleVoice"
+        >
+          {{ speaking ? '🗣️ 朗读中' : settings.voiceEnabled ? '🔊 语音开' : '🔇 语音关' }}
+        </button>
+        <button v-if="!persistenceEnabled()" class="ghost-btn" @click="resetSession">新建会话</button>
+      </div>
     </div>
 
     <div class="msg-list">
@@ -207,6 +227,7 @@ function resetSession() {
         >
           <button @click="copyMessage(i)">{{ copiedIndex === i ? '✅ 已复制' : '📋 复制' }}</button>
           <button v-if="i === messages.length - 1" @click="regenerate">🔄 重新生成</button>
+          <button @click="speakFull(m.content)">🔊 朗读</button>
         </div>
       </div>
     </div>
@@ -246,10 +267,10 @@ function resetSession() {
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  color: #8888a6;
+  color: var(--text-4);
   font-size: 14px;
   font-weight: 600;
-  color: #e6e6f2;
+  color: var(--text-2);
 }
 .conv-title {
   white-space: nowrap;
@@ -259,8 +280,8 @@ function resetSession() {
 .guest-badge {
   font-size: 12px;
   font-weight: 400;
-  color: #8888a6;
-  border: 1px solid #34345a;
+  color: var(--text-4);
+  border: 1px solid var(--border-strong);
   border-radius: 999px;
   padding: 2px 10px;
   white-space: nowrap;
@@ -268,14 +289,47 @@ function resetSession() {
 .ghost-btn {
   margin-left: auto;
   background: none;
-  border: 1px solid #3a3a55;
-  color: #b6b6cc;
+  border: 1px solid var(--border-strong);
+  color: var(--text-3);
   border-radius: 8px;
   padding: 4px 12px;
   cursor: pointer;
 }
+.toolbar-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.voice-btn {
+  border: 1px solid var(--border-strong);
+  background: none;
+  color: var(--text-4);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.voice-btn.on {
+  color: #ffd76b;
+  border-color: #b98a2f;
+}
+.voice-btn.speaking {
+  color: var(--bg);
+  background: linear-gradient(135deg, #ffd76b, #ff9d5c);
+  border-color: transparent;
+  animation: pulse 1.2s infinite;
+}
+@keyframes pulse {
+  50% { opacity: 0.75; }
+}
+.ghost-btn {
+  background: none;
+}
 .ghost-btn:hover {
-  border-color: #ff6b9d;
+  border-color: var(--a1);
   color: #fff;
 }
 .msg-list {
@@ -285,11 +339,11 @@ function resetSession() {
 }
 .welcome {
   text-align: center;
-  color: #a0a0c0;
+  color: var(--text-3);
   margin-top: 60px;
 }
 .welcome h2 {
-  color: #f0f0fa;
+  color: var(--text);
 }
 .suggestion-row {
   display: flex;
@@ -299,16 +353,16 @@ function resetSession() {
   margin-top: 24px;
 }
 .suggestion {
-  background: #1e1e33;
-  border: 1px solid #34345a;
-  color: #c8c8e0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  color: var(--text-2);
   border-radius: 12px;
   padding: 8px 14px;
   font-size: 13px;
   cursor: pointer;
 }
 .suggestion:hover {
-  border-color: #a76bff;
+  border-color: var(--a2);
   color: #fff;
 }
 .msg {
@@ -329,20 +383,20 @@ function resetSession() {
   font-size: 14px;
 }
 .bubble :deep(code) {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--code-bg);
   border-radius: 4px;
   padding: 1px 5px;
   font-family: Consolas, monospace;
   font-size: 13px;
 }
 .msg.user .bubble {
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
 .msg.assistant .bubble {
-  background: #1e1e33;
-  color: #e6e6f2;
+  background: var(--bg-card);
+  color: var(--text-2);
   border-bottom-left-radius: 4px;
 }
 .cursor {
@@ -366,9 +420,9 @@ function resetSession() {
   opacity: 1;
 }
 .msg-actions button {
-  border: 1px solid #34345a;
-  background: #17172a;
-  color: #8888a6;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-soft);
+  color: var(--text-4);
   font-size: 11px;
   border-radius: 999px;
   padding: 2px 10px;
@@ -376,13 +430,13 @@ function resetSession() {
 }
 .msg-actions button:hover {
   color: #fff;
-  border-color: #a76bff;
+  border-color: var(--a2);
 }
 .rag-badge {
   align-self: flex-start;
   margin-top: 2px;
   font-size: 11px;
-  color: #c9b6ff;
+  color: var(--a2);
   background: rgba(167, 107, 255, 0.15);
   border: 1px solid rgba(167, 107, 255, 0.4);
   border-radius: 999px;
@@ -390,8 +444,8 @@ function resetSession() {
   white-space: nowrap;
 }
 .error-bar {
-  background: #4a1f2e;
-  color: #ff9db4;
+  background: var(--danger-bg);
+  color: var(--danger-text);
   padding: 8px 16px;
   font-size: 13px;
 }
@@ -399,7 +453,7 @@ function resetSession() {
   display: flex;
   gap: 10px;
   padding: 12px 16px;
-  border-top: 1px solid #2b2b3a;
+  border-top: 1px solid var(--border);
   align-items: flex-end;
 }
 .rag-toggle {
@@ -408,7 +462,7 @@ function resetSession() {
   gap: 7px;
   cursor: pointer;
   flex-shrink: 0;
-  color: #8888a6;
+  color: var(--text-4);
   font-size: 12px;
   user-select: none;
   padding-bottom: 10px;
@@ -417,8 +471,8 @@ function resetSession() {
   width: 34px;
   height: 18px;
   border-radius: 999px;
-  background: #2b2b45;
-  border: 1px solid #3a3a55;
+  background: var(--hover);
+  border: 1px solid var(--border-strong);
   position: relative;
   transition: all 0.2s;
   flex-shrink: 0;
@@ -430,14 +484,14 @@ function resetSession() {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #8888a6;
+  background: var(--text-4);
   transition: all 0.2s;
 }
 .rag-toggle.on {
-  color: #e6e6f2;
+  color: var(--text-2);
 }
 .rag-toggle.on .switch {
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
   border-color: transparent;
 }
 .rag-toggle.on .knob {
@@ -446,10 +500,10 @@ function resetSession() {
 }
 .input-bar textarea {
   flex: 1;
-  background: #1a1a2e;
-  border: 1px solid #34345a;
+  background: var(--bg-input);
+  border: 1px solid var(--border-strong);
   border-radius: 12px;
-  color: #f0f0fa;
+  color: var(--text);
   padding: 10px 14px;
   font-size: 14px;
   outline: none;
@@ -459,7 +513,7 @@ function resetSession() {
   max-height: 150px;
 }
 .input-bar textarea:focus {
-  border-color: #a76bff;
+  border-color: var(--a2);
 }
 .send-btn,
 .stop-btn {
@@ -472,15 +526,15 @@ function resetSession() {
   flex-shrink: 0;
 }
 .send-btn {
-  background: linear-gradient(135deg, #ff6b9d, #a76bff);
+  background: var(--accent-grad);
 }
 .send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 .stop-btn {
-  background: #4a1f2e;
-  color: #ff9db4;
+  background: var(--danger-bg);
+  color: var(--danger-text);
 }
 @media (max-width: 860px) {
   .toolbar {

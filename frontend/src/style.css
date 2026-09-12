@@ -2,19 +2,91 @@
   box-sizing: border-box;
 }
 
+/* ========== 主题色（5 套可切换） ========== */
 :root {
+  --a1: #ff6b9d;
+  --a2: #a76bff;
+  --accent-grad: linear-gradient(135deg, var(--a1), var(--a2));
   font-family: system-ui, 'Segoe UI', 'Microsoft YaHei', Roboto, sans-serif;
-  color-scheme: dark;
-  color: #c8c8e0;
-  background: #101020;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
 }
 
+:root[data-accent='rose'] {
+  --a1: #ff6b9d;
+  --a2: #a76bff;
+}
+:root[data-accent='ocean'] {
+  --a1: #4e8cff;
+  --a2: #7b5cff;
+}
+:root[data-accent='mint'] {
+  --a1: #22b8a0;
+  --a2: #4aa8ff;
+}
+:root[data-accent='sunset'] {
+  --a1: #ff8a5c;
+  --a2: #ff5c8a;
+}
+:root[data-accent='violet'] {
+  --a1: #8a5cff;
+  --a2: #c05cff;
+}
+
+/* ========== 深色主题（默认） ========== */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #101020;
+  --bg-soft: #17172a;
+  --bg-card: #1e1e33;
+  --bg-input: #1a1a2e;
+  --border: #2b2b3a;
+  --border-strong: #34345a;
+  --hover: #2b2b45;
+  --text: #f0f0fa;
+  --text-2: #c8c8e0;
+  --text-3: #a0a0c0;
+  --text-4: #8888a6;
+  --text-5: #6a6a88;
+  --danger-bg: #4a1f2e;
+  --danger-text: #ff9db4;
+  --code-bg: rgba(255, 255, 255, 0.12);
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  color: var(--text-2);
+  background: var(--bg);
+}
+
+/* ========== 浅色主题 ========== */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f6f6fb;
+  --bg-soft: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #f2f2f8;
+  --border: #e5e5f0;
+  --border-strong: #d6d6e6;
+  --hover: #ececf6;
+  --text: #23233a;
+  --text-2: #45455f;
+  --text-3: #6b6b87;
+  --text-4: #8f8fab;
+  --text-5: #a8a8c0;
+  --danger-bg: #ffe9ee;
+  --danger-text: #d6336c;
+  --code-bg: rgba(0, 0, 0, 0.07);
+  --shadow: 0 16px 40px rgba(35, 35, 58, 0.12);
+  color: var(--text-2);
+  background: var(--bg);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--bg);
+  color: var(--text-2);
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 #app {
@@ -25,7 +97,7 @@ body {
   width: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2e2e4a;
+  background: var(--border-strong);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-track {

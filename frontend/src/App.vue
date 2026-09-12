@@ -2,6 +2,10 @@
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import AppSidebar from './components/AppSidebar.vue'
+import FloatingBall from './components/FloatingBall.vue'
+import SettingsModal from './components/SettingsModal.vue'
+import { settings } from './stores/settings'
+import { ui } from './stores/ui'
 
 const route = useRoute()
 const isLogin = computed(() => route.name === 'login')
@@ -20,6 +24,8 @@ const sidebarOpen = ref(false)
     <main class="app-main">
       <router-view />
     </main>
+    <FloatingBall v-if="settings.floatBall" />
+    <SettingsModal v-if="ui.settingsOpen" @close="ui.settingsOpen = false" />
   </div>
 </template>
 
@@ -65,9 +71,9 @@ const sidebarOpen = ref(false)
     left: 10px;
     top: 10px;
     z-index: 30;
-    border: 1px solid #2b2b3a;
-    background: #17172a;
-    color: #c8c8e0;
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    color: var(--text-2);
     border-radius: 8px;
     width: 34px;
     height: 34px;
@@ -78,6 +84,6 @@ const sidebarOpen = ref(false)
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  background: #101020;
+  background: var(--bg);
 }
 </style>

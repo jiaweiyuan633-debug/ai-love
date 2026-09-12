@@ -206,6 +206,30 @@ export async function listMessages(id: string): Promise<StoredMessage[]> {
   return resp.json()
 }
 
+// ================= 长期记忆 =================
+
+export interface MemoryItem {
+  id: number
+  content: string
+  createdAt: string
+}
+
+export async function listMemory(): Promise<{ enabled: boolean; items: MemoryItem[] }> {
+  const resp = await authRequest('/api/memory')
+  if (!resp.ok) throw await errorOf(resp, '获取记忆失败')
+  return resp.json()
+}
+
+export async function deleteMemoryItem(id: number): Promise<void> {
+  const resp = await authRequest(`/api/memory/${id}`, { method: 'DELETE' })
+  if (!resp.ok) throw await errorOf(resp, '删除失败')
+}
+
+export async function clearMemory(): Promise<void> {
+  const resp = await authRequest('/api/memory', { method: 'DELETE' })
+  if (!resp.ok) throw await errorOf(resp, '清空失败')
+}
+
 // ================= 知识库 =================
 
 export async function uploadKnowledge(file: File): Promise<{ file_name: string; chunks: number }> {
