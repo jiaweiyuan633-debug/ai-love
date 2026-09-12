@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   fetchCarePending,
   fetchDailyQuote,
+  fetchMembership,
   fetchMoodStatus,
   fetchPersonas,
   fetchSuggestions,
@@ -47,6 +48,7 @@ const personas = ref<Persona[]>([])
 const pickedMode = ref<'advisor' | 'companion'>('advisor')
 const guestPersona = ref('jiejie')
 const guestGreeting = ref('')
+const isVip = ref(false)
 const care = ref<CareMessage | null>(null)
 
 // ---------- 心情打卡 ----------
@@ -214,6 +216,10 @@ onMounted(() => {
     void loadHistory(conversations.activeId)
   }
   if (persistenceEnabled()) {
+    // VIP 徽章（会员状态获取失败时静默保持隐藏）
+    fetchMembership()
+      .then((m) => (isVip.value = m.vip))
+      .catch(() => undefined)
     // 纪念日提醒
     getCoupleStatus()
       .then((c) => (coupleInfo.value = c))
@@ -480,6 +486,7 @@ function resetSession() {
         @click="setActive('')"
       >{{ activePersona.emoji }} {{ activePersona.name }} · {{ activeMode === 'companion' ? '陪伴' : '顾问' }}</button>
       <div class="toolbar-right">
+        <span v-if="isVip" class="vip-badge" title="VIP 会员 · 畅聊无限次">💎 VIP</span>
         <button
           v-if="persistenceEnabled() && conversations.activeId"
           class="voice-btn"
@@ -681,6 +688,16 @@ function resetSession() {
   font-weight: 400;
   color: var(--text-4);
   border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.vip-badge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #b8860b;
+  border: 1px solid rgba(255, 190, 80, 0.55);
+  background: linear-gradient(135deg, rgba(255, 200, 90, 0.16), rgba(255, 120, 160, 0.12));
   border-radius: 999px;
   padding: 2px 10px;
   white-space: nowrap;

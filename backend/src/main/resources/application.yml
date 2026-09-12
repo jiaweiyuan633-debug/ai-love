@@ -92,6 +92,9 @@ app:
   # 知识库/RAG 功能开关（无数据库的云端部署置 false）
   knowledge:
     enabled: ${KNOWLEDGE_ENABLED:true}
+  # 会员订阅：免费用户每日 AI 对话额度（VIP 不限 + AI 每分钟限流翻倍）；支付为模拟回调
+  membership:
+    daily-free-limit: ${MEMBERSHIP_DAILY_FREE_LIMIT:20}
   # 云端内联恋爱工具（与 MCP 远程工具二选一：云端 true + MCP 关闭；本地默认走 MCP）
   inline-love-tools:
     enabled: ${INLINE_LOVE_TOOLS:false}

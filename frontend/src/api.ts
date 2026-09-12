@@ -526,3 +526,55 @@ export async function fetchAchievements(): Promise<Achievement[]> {
   if (!resp.ok) throw await errorOf(resp, '获取成就失败')
   return resp.json()
 }
+
+// ================= 会员订阅（模拟支付） =================
+
+export interface MembershipPlan {
+  id: string
+  label: string
+  priceFen: number
+  days: number
+}
+
+export interface MembershipStatus {
+  vip: boolean
+  plan: string | null
+  vipUntil: string | null
+  dailyUsed: number
+  dailyLimit: number
+}
+
+export interface MembershipOrder {
+  id: string
+  plan: string
+  priceFen: number
+  status: 'pending' | 'paid'
+}
+
+export async function fetchMembership(): Promise<MembershipStatus> {
+  const resp = await authRequest('/api/membership')
+  if (!resp.ok) throw await errorOf(resp, '获取会员状态失败')
+  return resp.json()
+}
+
+export async function fetchMembershipPlans(): Promise<MembershipPlan[]> {
+  const resp = await authRequest('/api/membership/plans')
+  if (!resp.ok) throw await errorOf(resp, '获取套餐失败')
+  return resp.json()
+}
+
+export async function createMembershipOrder(plan: string): Promise<MembershipOrder> {
+  const resp = await authRequest('/api/membership/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ plan }),
+  })
+  if (!resp.ok) throw await errorOf(resp, '下单失败')
+  return resp.json()
+}
+
+export async function payMembershipOrder(id: string): Promise<MembershipStatus> {
+  const resp = await authRequest(`/api/membership/orders/${encodeURIComponent(id)}/pay`, { method: 'POST' })
+  if (!resp.ok) throw await errorOf(resp, '支付失败')
+  return resp.json()
+}

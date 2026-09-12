@@ -91,3 +91,30 @@ CREATE TABLE IF NOT EXISTS mood_logs (
     UNIQUE (user_id, mdate)
 );
 CREATE INDEX IF NOT EXISTS idx_mood_user ON mood_logs (user_id, mdate DESC);
+
+-- 会员订阅：VIP 状态与订单（模拟支付；接入真实支付网关时仅替换回调入口）
+CREATE TABLE IF NOT EXISTS memberships (
+    user_id    BIGINT      PRIMARY KEY,
+    plan       VARCHAR(16),
+    vip_until  TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS membership_orders (
+    id         TEXT        PRIMARY KEY,
+    user_id    BIGINT      NOT NULL,
+    plan       VARCHAR(16) NOT NULL,
+    price_fen  BIGINT      NOT NULL,
+    status     VARCHAR(16) NOT NULL DEFAULT 'pending', -- pending / paid
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    paid_at    TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_membership_orders_user ON membership_orders (user_id, created_at DESC);
+
+-- 免费用户每日 AI 额度计数（每天一行，跨天自然滚动）
+CREATE TABLE IF NOT EXISTS membership_daily_usage (
+    user_id BIGINT NOT NULL,
+    uday    DATE   NOT NULL,
+    used    INT    NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, uday)
+);

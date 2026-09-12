@@ -6,17 +6,23 @@ import { ui } from '../stores/ui'
 import { auth, clearSession } from '../stores/auth'
 import {
   bindCouple,
+  createMembershipOrder,
   deleteMemoryItem,
   fetchAchievements,
+  fetchMembership,
+  fetchMembershipPlans,
   generateCoupleCode,
   getCoupleStatus,
   listMemory,
   patchMe,
   clearMemory,
+  payMembershipOrder,
   setAnniversary,
   unbindCouple,
   type Achievement,
   type CoupleStatus,
+  type MembershipPlan,
+  type MembershipStatus,
   type MemoryItem,
 } from '../api'
 import { zhVoices, speakFull } from '../composables/useSpeech'
@@ -39,7 +45,7 @@ function preview(personaId: string) {
 const router = useRouter()
 const emit = defineEmits<{ close: [] }>()
 
-const tab = ref<'appearance' | 'voice' | 'ball' | 'couple' | 'account' | 'achievements'>('appearance')
+const tab = ref<'appearance' | 'voice' | 'ball' | 'couple' | 'account' | 'achievements' | 'member'>('appearance')
 
 const themes = [
   { value: 'light', label: '☀️ 浅色' },
@@ -68,6 +74,7 @@ onMounted(() => {
   if (auth.user) {
     void refreshCouple()
     void refreshAchievements()
+    void refreshMembership()
   }
 })
 
@@ -158,6 +165,43 @@ async function copyCode() {
 const memoryItems = ref<MemoryItem[]>([])
 const memoryLoading = ref(false)
 
+// ---------- 会员订阅（模拟支付） ----------
+const membership = ref<MembershipStatus | null>(null)
+const plans = ref<MembershipPlan[]>([])
+const payingPlan = ref('')
+const memberError = ref('')
+
+async function refreshMembership() {
+  if (!auth.enabled || !auth.user) return
+  try {
+    membership.value = await fetchMembership()
+    if (plans.value.length === 0) {
+      plans.value = await fetchMembershipPlans()
+    }
+  } catch {
+    memberError.value = '会员服务暂不可用'
+  }
+}
+
+async function buy(planId: string) {
+  if (payingPlan.value) return
+  payingPlan.value = planId
+  memberError.value = ''
+  try {
+    const order = await createMembershipOrder(planId)
+    membership.value = await payMembershipOrder(order.id)
+  } catch (err) {
+    memberError.value = err instanceof Error ? err.message : '支付失败，请稍后再试'
+  } finally {
+    payingPlan.value = ''
+  }
+}
+
+function fmtVipUntil(iso: string | null): string {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })
+}
+
 async function refreshMemory() {
   if (!auth.user) return
   memoryLoading.value = true
@@ -239,6 +283,7 @@ const isGuest = computed(() => !auth.user)
           <button :class="{ active: tab === 'couple' }" @click="tab = 'couple'">💕 情侣</button>
           <button :class="{ active: tab === 'achievements' }" @click="tab = 'achievements'">🏆 成就</button>
           <button :class="{ active: tab === 'account' }" @click="tab = 'account'">👤 记忆与账号</button>
+          <button v-if="auth.enabled" :class="{ active: tab === 'member' }" @click="tab = 'member'">💎 会员</button>
         </nav>
 
         <div class="body">
@@ -474,6 +519,44 @@ const isGuest = computed(() => !auth.user)
               <span>·</span>
               <a href="/privacy" target="_blank">隐私政策</a>
             </div>
+          </section>
+
+          <!-- 会员 -->
+          <section v-if="tab === 'member'" class="section">
+            <template v-if="isGuest">
+              <p class="hint">登录后即可开通会员。</p>
+            </template>
+            <template v-else>
+              <div class="member-status" :class="{ vip: membership?.vip }">
+                <template v-if="membership?.vip">
+                  <div class="member-title">💎 VIP 会员</div>
+                  <p class="hint">有效期至 {{ fmtVipUntil(membership.vipUntil) }} · 畅聊无限次 · AI 限流额度翻倍</p>
+                </template>
+                <template v-else>
+                  <div class="member-title">免费版</div>
+                  <p class="hint">
+                    今日免费对话 {{ membership?.dailyUsed ?? 0 }}/{{ membership?.dailyLimit ?? 20 }} 条，升级 VIP 畅聊无限次
+                  </p>
+                </template>
+              </div>
+
+              <div class="plan-grid">
+                <button
+                  v-for="p in plans"
+                  :key="p.id"
+                  class="plan-card"
+                  :disabled="payingPlan === p.id"
+                  @click="buy(p.id)"
+                >
+                  <span class="plan-label">{{ p.label }}</span>
+                  <span class="plan-price">¥{{ (p.priceFen / 100).toFixed(0) }}</span>
+                  <span class="plan-days">{{ p.days }} 天有效</span>
+                  <span class="plan-cta">{{ payingPlan === p.id ? '支付中…' : '立即开通（模拟支付）' }}</span>
+                </button>
+              </div>
+              <p v-if="memberError" class="member-error">{{ memberError }}</p>
+              <p class="hint">支付为演示用的模拟回调，未接入真实支付渠道；会员权益仅在本应用内生效。</p>
+            </template>
           </section>
         </div>
       </div>
@@ -926,5 +1009,75 @@ header h2 {
   background: var(--accent-grad);
   color: #fff;
   border-color: transparent;
+}
+
+/* ---------- 会员 ---------- */
+.member-status {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: var(--bg);
+}
+.member-status.vip {
+  border-color: rgba(255, 190, 80, 0.45);
+  background: linear-gradient(135deg, rgba(255, 200, 90, 0.12), rgba(255, 120, 160, 0.1));
+}
+.member-title {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-card);
+  color: var(--text);
+  border-radius: 14px;
+  padding: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+.plan-card:hover {
+  border-color: var(--a1);
+}
+.plan-card:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.plan-label {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.plan-price {
+  font-size: 20px;
+  font-weight: 700;
+}
+.plan-days {
+  font-size: 11px;
+  color: var(--text-4);
+}
+.plan-cta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--a1);
+}
+.member-error {
+  color: var(--danger-text);
+  font-size: 13px;
+  margin: 8px 0 0;
+}
+@media (max-width: 500px) {
+  .plan-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
